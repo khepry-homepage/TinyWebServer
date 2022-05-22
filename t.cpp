@@ -3,7 +3,7 @@
 using namespace std;
 
 int main() {
-  string* p = new string("2123123");
+  char p[4] = "212";
 
   return 0;
 }
