@@ -1,7 +1,8 @@
 #include "../include/http_parser.h"
 #include <iostream>
+#include <string>
 using namespace http;
-
+using namespace std;
 HttpParser::PROCESS_STATE
 HttpParser::ProcessRead(char* buffer, int& index, int& line_start, HttpRequest& rq) {
   LINE_STATE line_state = LINE_OK;
@@ -39,7 +40,7 @@ HttpParser::ParseLine(char* buffer, int& index) {
   if (ptr == nullptr) {
     return LINE_MORE;
   }
-  if (*(ptr + 1) != '\0' && *(ptr + 1) != '\n') {
+  if (*(ptr + 1) != '\n') {
     return LINE_BAD;
   }
   
@@ -51,10 +52,10 @@ HttpParser::ParseLine(char* buffer, int& index) {
 
 HttpParser::PROCESS_STATE
 HttpParser::ParseRequestLine(char* line, HttpRequest& rq) {
-  if (strcmp(line, "GET") == 0) {
+  if (strstr(line, "GET") != nullptr) {
     rq.method = HttpRequest::GET;
   }
-  else if (strcmp(line, "POST") == 0) {
+  else if (strstr(line, "POST") != nullptr) {
     rq.method = HttpRequest::POST;
   }
   else {
@@ -68,10 +69,10 @@ HttpParser::ParseRequestLine(char* line, HttpRequest& rq) {
     rq.uri.assign(line);
   }
   line = strstr(tmp_ptr, "/") + 1;
-  if (strcmp(line, "1.0")) {
+  if (strstr(line, "1.0") != nullptr) {
     rq.version = HttpRequest::HTTP_10;
   }
-  else if (strcmp(line, "1.1")) {
+  else if (strstr(line, "1.1") != nullptr) {
     rq.version = HttpRequest::HTTP_11;
   }
   else {
@@ -82,8 +83,8 @@ HttpParser::ParseRequestLine(char* line, HttpRequest& rq) {
 
 HttpParser::PROCESS_STATE 
 HttpParser::ParseHeader(char* line, HttpRequest& rq) {
-  if (*line = '\0') {
-    return CHECK_STATE_BODY;
+  if (strcmp(line, "") == 0) {
+    return rq.method == HttpRequest::GET ? CHECK_STATE_FINISH : CHECK_STATE_BODY;
   }
   char* p = strstr(line, ":");
   if (p == nullptr) {
