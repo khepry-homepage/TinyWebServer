@@ -23,6 +23,7 @@ public:
       if (pthread_create(m_threads + i, nullptr, threadpool::worker, this) != 0) {
         throw std::exception();
       }
+      pthread_detach(m_threads[i]);
     }
   }
   ~threadpool() {

@@ -1,8 +1,27 @@
 #include "../include/http_parser.h"
 #include <iostream>
-#include <string>
-using namespace http;
+#include <string.h>
 using namespace std;
+
+HttpParser::HttpParser() {
+  HttpParser::Init(hr, this);
+}
+
+void HttpParser::Init(HttpRequest &rq, HttpParser *hp) {
+  rq.process_state = CHECK_STATE_REQUESTLINE;
+  rq.method = HttpRequest::METHOD_NOT_SUPPORT;
+  rq.uri = default_req_uri;
+  rq.version = HttpRequest::VERSION_NOT_SUPPORT;
+  hp->Init();
+}
+
+void HttpParser::Init() {
+  memset(read_buf, 0, sizeof(read_buf));
+  read_idx = 0;
+  start_idx = 0;
+  check_idx = 0;
+}
+
 HttpParser::PROCESS_STATE
 HttpParser::ProcessRead(char* buffer, int& index, int& line_start, HttpRequest& rq) {
   LINE_STATE line_state = LINE_OK;

@@ -70,6 +70,9 @@ void http_conn::close_conn() {
 }
 
 bool http_conn::read() {
+  char buf[1024];
+  ssize_t len = recv(m_socketfd, buf, sizeof(buf), 0);
+  printf("接受数据:\n%s", buf);
   printf("read success\n");
   return true;
 }
