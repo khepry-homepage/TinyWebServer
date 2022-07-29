@@ -12,9 +12,10 @@ TARGET  = $(TEST)/test.cpp
 RM      = rm -rf
 
 test:$(OBJS)
-	$(CC) $(TARGET) -o $(OBJS) $(CFLAGS)
+	$(CC) $(TARGET) -o $(TEST)/test $(CFLAGS)
+	$(RM) $(OBJS)
 
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(TEST)/test
 
 
