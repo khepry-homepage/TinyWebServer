@@ -5,14 +5,15 @@
 
 ROOT    = $(PWD)
 TEST    = $(ROOT)/test
+HTTP		= $(ROOT)/http
 CFLAGS  = -lgtest -lgtest_main -pthread -g
-OBJS    = $(TEST)/test.o
+OBJS    = $(TEST)/test.o $(HTTP)/http_conn.o
 CC      = g++
-TARGET  = $(TEST)/test.cpp
+TARGET  = $(TEST)/test.cpp $(HTTP)/http_conn.cpp
 RM      = rm -rf
 
 test:$(OBJS)
-	$(CC) $(TARGET) -o $(TEST)/test $(CFLAGS)
+	$(CC) $(TARGET) -o $(TEST)/test  $(CFLAGS)
 	$(RM) $(OBJS)
 
 clean:

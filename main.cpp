@@ -23,11 +23,11 @@ void addsig(int sig, void(*handler)(int)) {
 }
 
 // 添加文件描述符到epoll中
-extern void addfd(int epollfd, int fd, bool one_shot);
+extern void AddFD(int epollfd, int fd, bool one_shot);
 // 删除epoll中的文件描述符
-extern void removefd(int epollfd, int fd);
+extern void RemoveFD(int epollfd, int fd);
 // 修改文件描述符，重置socket上的EPOLLONESHOT事件，以确保下次可读
-extern void modfd(int epollfd, int fd, int ev);
+extern void ModFD(int epollfd, int fd, int ev);
 
 int main(int argc, char **argv) {
     if (argc <= 1) {
