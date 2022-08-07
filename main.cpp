@@ -37,10 +37,10 @@ int main(int argc, char **argv) {
     int port = atoi(argv[1]);
     addsig(SIGPIPE, SIG_IGN); // 忽略
     // 初始化线程池
-    threadpool<http_conn> *tp = nullptr;
+    threadpool<HttpConn> *tp = nullptr;
     try
     {
-        tp = new threadpool<http_conn>;
+        tp = new threadpool<HttpConn>;
     }
     catch(...)
     {
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     }
     
     // 创建一个数组用于保存所有的客户端信息
-    http_conn *users = new http_conn[MAX_FD];
+    HttpConn *users = new HttpConn[MAX_FD];
 
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
     if (lfd == -1) {
@@ -80,8 +80,8 @@ int main(int argc, char **argv) {
         exit(-1);
     }
     // 添加服务端监听文件描述符
-    addfd(epfd, lfd, false);   
-    http_conn::m_epollfd = epfd; 
+    AddFD(epfd, lfd, false);   
+    HttpConn::m_epollfd = epfd; 
     int maxevents = 1024;                                 
     struct epoll_event events[1024];
     memset(events, 0, sizeof(events));
@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
                     perror("accept");
                     exit(-1);
                 }
-                if (http_conn::m_user_count >= MAX_FD) {
+                if (HttpConn::m_user_count >= MAX_FD) {
                     // 目前连接数已满，无法接受更多连接
                     printf("connection number overload\n");
                     close(cfd);
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
                 }
                 
                 // 在数组中记录客户端连接信息
-                users[cfd].init(cfd);
+                users[cfd].Init(cfd);
                 // 输出客户端信息
                 char clientIP[16];
                 inet_ntop(AF_INET, &c_addr.sin_addr.s_addr, clientIP, sizeof(clientIP));
@@ -120,21 +120,21 @@ int main(int argc, char **argv) {
             }
             // 异常事件，关闭文件描述符
             else if (events[i].events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {
-                users[sockfd].close_conn();
+                users[sockfd].CloseConn();
             }
             else if (events[i].events & EPOLLIN) {
                 // 一次性读取socket数据成功
-                if (users[sockfd].read()) {
+                if (users[sockfd].Read()) {
                     tp->append_task(users + sockfd);
                 }
                 else {
-                    users[sockfd].close_conn();
+                    users[sockfd].CloseConn();
                 }
             }
             else if (events[i].events & EPOLLOUT) {
                 // 一次性读取socket数据成功
-                if (!users[sockfd].write()) {
-                    users[sockfd].close_conn();
+                if (!users[sockfd].Write()) {
+                    users[sockfd].CloseConn();
                 }
             }
         }

@@ -58,8 +58,7 @@ public:
       m_requests.pop_front();
       m_queue_locker.unlock();
       /* to do */
-
-
+      task->Process();
     }
   }
 private:

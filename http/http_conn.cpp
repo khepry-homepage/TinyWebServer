@@ -1,10 +1,43 @@
 #include "../include/http_conn.h"
 
+// 定义HTTP响应的一些状态信息
+const char* ok_200_title = "OK";
+const char* error_400_title = "Bad Request";
+const char* error_400_form = "Your request has bad syntax or is inherently impossible to satisfy.\n";
+const char* error_403_title = "Forbidden";
+const char* error_403_form = "You do not have permission to get file from this server.\n";
+const char* error_404_title = "Not Found";
+const char* error_404_form = "The requested file was not found on this server.\n";
+const char* error_500_title = "Internal Error";
+const char* error_500_form = "There was an unusual problem serving the requested file.\n";
+
 
 const char *default_req_uri = "index.html"; // default request uriname
+std::string doc_root = "/home/khepry/coding/web_server/html/"; // resource root dirname
 int HttpConn::m_epollfd = -1; // 全局唯一的epoll实例
 int HttpConn::m_user_count = -1; // 统计用户的数量
 
+
+/** @fn: int GetGmtTime(char* szGmtTime)
+ *  @brief : 获取格林制GMT时间
+ *  @param (out) char * szGmtTime : 存放GMT时间的缓存区，外部传入
+ *  @return int : szGmtTime的实际长度
+ */
+int GetGmtTime(char *szGmtTime)
+{
+    if (szGmtTime == NULL)
+    {
+        return -1;
+    }
+    time_t rawTime;
+    struct tm *timeInfo;
+    char szTemp[30] = {0};
+    time(&rawTime);
+    timeInfo = gmtime(&rawTime);
+    strftime(szTemp,sizeof(szTemp),"%a, %d %b %Y %H:%M:%S GMT", timeInfo);
+    memcpy(szGmtTime, szTemp, strlen(szTemp) + 1); 
+    return strlen(szGmtTime);
+}
 
 // 设置文件描述符非阻塞
 void SetNonBlock(int fd) {
@@ -47,19 +80,12 @@ void ModFD(int epollfd, int fd, int events) {
   epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &ev);
 }
 
-void HttpConn::Init(int cfd) {
-  m_socketfd = cfd;
-  // 设置端口复用
-  int reuse = 1;
-  setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-  AddFD(HttpConn::m_epollfd, cfd, true);
-}
 
 void HttpConn::CloseConn() {
   if (m_socketfd != -1) {
-    RemoveFD(HttpConn::m_epollfd, m_socketfd);
+    RemoveFD(m_epollfd, m_socketfd);
     m_socketfd = -1;
-    --m_user_count;
+    --HttpConn::m_user_count;
   }
 }
 
@@ -69,15 +95,21 @@ void HttpConn::Process() {
   printf("parse http request...\n");
   HTTP_CODE read_ret = ProcessRead();
   if (read_ret == NO_REQUEST) {
+    // 请求不完整，重新注册读事件
     ModFD(m_epollfd, m_socketfd, EPOLLIN);
     return;
   }
   // 生成响应
   printf("produce http response...\n");
   bool write_ret = ProcessWrite(read_ret);
+  if (m_file_addr) {
+    bytes_to_send += m_file_stat.st_size; 
+  }
+  bytes_to_send += write_idx; 
   if (!write_ret) {
     CloseConn();
   }
+  // 注册写事件
   ModFD(HttpConn::m_epollfd, m_socketfd, EPOLLOUT);
 } 
 
@@ -93,6 +125,14 @@ HttpConn::~HttpConn() {
   delete hr;
 }
 
+void HttpConn::Init(int cfd) {
+  m_socketfd = cfd;
+  // 设置端口复用
+  int reuse = 1;
+  setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+  AddFD(HttpConn::m_epollfd, cfd, true);
+}
+
 void HttpConn::Init(HttpRequest *hr, HttpConn *hc) {
   hr->process_state = HttpConn::CHECK_STATE_REQUESTLINE;
   hr->method = HttpRequest::METHOD_NOT_SUPPORT;
@@ -105,6 +145,7 @@ void HttpConn::Init(HttpRequest *hr, HttpConn *hc) {
 
 
 void HttpConn::Init() {
+  memset(m_filename, 0, sizeof(m_filename));
   memset(read_buf, 0, sizeof(read_buf));
   memset(write_buf, 0, sizeof(write_buf));
   read_idx = 0;
@@ -118,7 +159,7 @@ HttpConn::HTTP_CODE
 HttpConn::ProcessRead() {
   LINE_STATE line_state = LINE_OK;
   HTTP_CODE parse_state = NO_REQUEST;
-  while (parse_state != GET_REQUEST && (line_state = ParseLine()) == LINE_OK) {
+  while ((line_state = ParseLine()) == LINE_OK) {
     char *line = read_buf + start_idx;
     start_idx = check_idx;
     switch (hr->process_state)
@@ -135,6 +176,9 @@ HttpConn::ProcessRead() {
       if ((parse_state = HttpConn::ParseHeader(line, hr)) == BAD_REQUEST) {
         return BAD_REQUEST;
       }
+      else if (parse_state == GET_REQUEST) {
+        return DoRequest();
+      }
       break;
     }
     case CHECK_STATE_BODY: 
@@ -142,10 +186,14 @@ HttpConn::ProcessRead() {
       if ((parse_state = HttpConn::ParseBody(line, hr)) == BAD_REQUEST) {
         return BAD_REQUEST;
       }
+      else if (parse_state == GET_REQUEST) {
+        return DoRequest();
+      }
       break;
     }
-    default:
-      break;
+    default: {
+        return INTERNAL_ERROR;      
+      }
     }
   }
   if (line_state == LINE_BAD) {
@@ -154,9 +202,80 @@ HttpConn::ProcessRead() {
   return parse_state;
 }
 
-HttpConn::HTTP_CODE 
-HttpConn::ProcessWrite(HttpConn::HTTP_CODE code) {
-  return NO_REQUEST;
+HttpConn::HTTP_CODE
+HttpConn::DoRequest() {
+  strcpy(m_filename, doc_root.c_str());
+  // 若请求uri为空，使用默认uri
+  if (strlen(hr->uri) == 0) {
+    hr->uri = default_req_uri;
+  }
+  memcpy(m_filename + doc_root.length(), hr->uri, strlen(hr->uri) + 1);
+  // 文件是否存在
+  if (stat(m_filename, &m_file_stat) == -1) {
+    perror("stat");
+    return NO_RESOURCE;
+  }
+  // 判断访问权限
+  if (!(m_file_stat.st_mode & S_IROTH)) {
+    return FORBIDDEN_REQUEST;
+  }
+  // 判断是否是目录
+  if ( S_ISDIR( m_file_stat.st_mode ) ) {
+      return BAD_REQUEST;
+  }
+  int fd = open(m_filename, O_RDONLY);
+  // 创建虚拟内存映射（磁盘数据拷贝到内存），这样调用read可以直接读内存，而不会发生磁盘→内核→用户内存这两次拷贝
+  m_file_addr = (char *)mmap(0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  return FILE_REQUEST;
+}
+
+bool HttpConn::ProcessWrite(HTTP_CODE code) {
+  switch (code)
+  {
+  case BAD_REQUEST:
+    AddStatusLine(400, error_400_title);
+    AddResponseHeader(strlen(error_400_form));
+    if (!AddResponseContent(error_400_form)) {
+      return false;
+    }
+    break;
+  case NO_RESOURCE:
+    AddStatusLine(404, error_404_title);
+    AddResponseHeader(strlen(error_404_form));
+    if (!AddResponseContent(error_404_form)) {
+      return false;
+    }
+    break;
+  case INTERNAL_ERROR:
+    AddStatusLine(500, error_500_title);
+    AddResponseHeader(strlen(error_500_form));
+    if (!AddResponseContent(error_500_form)) {
+      return false;
+    }
+    break;
+  case FORBIDDEN_REQUEST:
+    AddStatusLine(403, error_403_title);
+    AddResponseHeader(strlen(error_403_form));
+    if (!AddResponseContent(error_403_form)) {
+      return false;
+    }
+    break;
+  case FILE_REQUEST:
+    AddStatusLine(200, ok_200_title);
+    AddResponseHeader(m_file_stat.st_size);
+    m_iv[0].iov_base = write_buf;
+    m_iv[0].iov_len = write_idx;
+    m_iv[1].iov_base = m_file_addr;
+    m_iv[1].iov_len = m_file_stat.st_size;
+    m_iv_count = 2;
+    return true;
+  default:
+    return false;;
+  }
+  m_iv[0].iov_base = write_buf;
+  m_iv[0].iov_len = write_idx;
+  m_iv_count = 1;
+  return true;
 }
 
 HttpConn::LINE_STATE
@@ -210,6 +329,10 @@ HttpConn::ParseRequestLine(char *line, HttpRequest *hr) {
   tmp = strpbrk(line, " \t");
   *tmp++ = '\0';
   hr->uri = line;
+  // 防止缓冲区溢出攻击
+  if (strlen(hr->uri) + 1 > FILENAME_LEN - doc_root.length()) {
+    return BAD_REQUEST;
+  }
   line = tmp;
 
   if (strcasecmp(line, "HTTP/1.0") == 0) {
@@ -293,24 +416,39 @@ bool HttpConn::Write() {
   }
   int bytes_write = 0;
   while (true) {
-    bytes_write = send(m_socketfd, write_buf + write_idx, bytes_to_send, 0);
+    bytes_write = writev(m_socketfd, m_iv, m_iv_count);
     if (bytes_write == -1) {
       // 还有更多数据要写
       if (errno == EAGAIN) {
         ModFD(m_epollfd, m_socketfd, EPOLLOUT);
-        break;
+        return true;
       }
+      // 解除映射内存
+      unmap();
       return false;
     }
     bytes_to_send -= bytes_write;
-    write_idx += bytes_write;
+    bytes_have_send += bytes_write;
+    // 响应行和响应头未发送完毕
+    if (bytes_have_send <= write_idx) {
+      m_iv[0].iov_base = m_iv[0].iov_base + bytes_have_send;
+      m_iv[0].iov_len -= bytes_have_send;
+    }
+    // 响应行和响应头已发送完毕
+    else {
+      m_iv[0].iov_len = 0;
+      m_iv[1].iov_base = m_iv[1].iov_base + bytes_have_send - write_idx;
+      m_iv[1].iov_len -= (bytes_have_send - write_idx);
+    }
     if (bytes_to_send == 0) {
-
+      unmap();
+      // 不释放连接
       if (strcasecmp(hr->header_option[HttpRequest::Connection], "keep-alive") == 0) {
         ModFD(m_epollfd, m_socketfd, EPOLLIN);
         Init(hr, this);
         return true;
       }
+      // 释放连接
       else {
         ModFD(m_epollfd, m_socketfd, EPOLLIN);
         return false;
@@ -318,4 +456,61 @@ bool HttpConn::Write() {
     }
   }
   return true;
+}
+
+bool HttpConn::AddResponseLine(const char *format, ...) {
+  if (write_idx >= WRITE_BUFFER_SIZE) {
+    return false;
+  }
+  std::va_list args;
+  va_start(args, format);
+  int len = vsnprintf(write_buf + write_idx, WRITE_BUFFER_SIZE - write_idx - 1, format, args);
+  // 写缓冲区溢出
+  if (len >= WRITE_BUFFER_SIZE - write_idx - 1) {
+    return false;
+  }
+  write_idx += len;
+  va_end(args);
+  return true;
+}
+
+bool HttpConn::AddStatusLine(int code, const char *content) {
+  if (hr->version == HttpRequest::HTTP_10) {
+    return AddResponseLine("%s %d %s\r\n", "HTPP/1.0", code, content);
+  }
+  else if (hr->version == HttpRequest::HTTP_11) {
+    return AddResponseLine("%s %d %s\r\n", "HTTP/1.1", code, content);
+  }
+}
+
+bool HttpConn::AddResponseHeader(int content_length) {
+  char date[40];
+  if (GetGmtTime(date) == -1) {
+    perror("GetGmtTime");
+    return false;
+  }
+  if (
+    AddResponseLine("Date: %s\r\n", date) &&
+    AddResponseLine("Server: %s\r\n", "Apache/2.4.52 (Ubuntu)") &&
+    AddResponseLine("X-Frame-Options: %s\r\n", "SAMEORIGIN") &&
+    AddResponseLine("Content-Length: %d\r\n", content_length) &&
+    AddResponseLine("Connection: %s\r\n", hr->header_option[HttpRequest::Connection]) &&
+    AddResponseLine("Content-Type: %s; %s\r\n", "text/html", "charset=iso-8859-1") && 
+    AddResponseLine("%s", "\r\n")
+  ) {
+    return true;
+  }
+  return false;
+
+}
+
+bool HttpConn::AddResponseContent(const char *content) {
+  return AddResponseLine("%s", content);
+}
+
+void HttpConn::unmap() {
+  if (m_file_addr) {
+    munmap(m_file_addr, m_file_stat.st_size);
+    m_file_addr = nullptr;
+  }
 }
