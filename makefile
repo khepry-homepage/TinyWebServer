@@ -11,9 +11,9 @@ CFLAGS  		= -lgtest -lgtest_main -pthread -g
 RM      		= rm -rf
 
 MAIN_OBJS		= $(ROOT)/main.o $(HTTP)/http_conn.o
-TEST_OBJS 	= $(TEST)/test.o $(HTTP)/http_conn.o
-MAIN_TARGET = $(ROOT)/main.cpp $(HTTP)/http_conn.cpp
-TEST_TARGET = $(TEST)/test.cpp $(HTTP)/http_conn.cpp
+TEST_OBJS		= $(TEST)/test.o $(HTTP)/http_conn.o
+MAIN_TARGET	= $(ROOT)/main.cpp $(HTTP)/http_conn.cpp
+TEST_TARGET	= $(TEST)/test.cpp $(HTTP)/http_conn.cpp
 
 server:$(MAIN_OBJS)
 	$(CC) $(MAIN_OBJS) -o $(ROOT)/server $(CFLAGS)
