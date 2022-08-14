@@ -16,6 +16,8 @@
 #include <string.h>
 #include <time.h>
 #include <cstdarg>
+#include <memory>
+#include "../include/db_connpool.h"
 
 extern const char *default_req_uri;
 extern std::string doc_root;
@@ -29,6 +31,7 @@ public:
   const static int FILENAME_LEN = 128; // 访问资源的文件名大小
   static int m_epollfd; // 全局唯一的epoll实例
   static int m_user_count; // 统计用户的数量
+  static DBConnPool *coon_pool; // 数据库连接池
 
   enum LINE_STATE { LINE_OK, LINE_BAD, LINE_MORE };
   enum PROCESS_STATE { CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER, CHECK_STATE_BODY, CHECK_STATE_FINISH};
@@ -111,6 +114,8 @@ struct HttpRequest {
   HttpRequest() : 
     process_state(HttpConn::CHECK_STATE_REQUESTLINE), version(VERSION_NOT_SUPPORT),
     method(METHOD_NOT_SUPPORT), uri(const_cast<char*>(default_req_uri)), content(nullptr) {};
+    method(METHOD_NOT_SUPPORT), uri(const_cast<char*>(default_req_uri)), content(nullptr), mime_type(nullptr) {};
+  bool SetMIME(const char *); // 获取文件的MIME类型
   HttpConn::PROCESS_STATE process_state;
   HTTP_METHOD method;
   HTTP_VERSION version;
@@ -118,5 +123,10 @@ struct HttpRequest {
   const char *content;
   std::unordered_map<HTTP_HEADER, char *> header_option;
 };
+
+  const char *mime_type;
+  std::unordered_map<HTTP_HEADER, char *> header_option;
+};
+
 
 #endif

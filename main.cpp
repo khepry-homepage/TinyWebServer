@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <signal.h>
 #include "./include/http_conn.h"
+#include "./include/db_connpool.h"
 
 #define MAX_FD 65535 // 最大的文件描述符个数
 
@@ -49,6 +50,11 @@ int main(int argc, char **argv) {
     
     // 创建一个数组用于保存所有的客户端信息
     HttpConn *users = new HttpConn[MAX_FD];
+
+    // 初始化数据库连接池
+    DBConnPool::Init("localhost", "root", "123456", "tiny_webserver", 3306, 10);
+    HttpConn::coon_pool = DBConnPool::GetInstance();
+    
 
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
     if (lfd == -1) {
@@ -97,6 +103,25 @@ int main(int argc, char **argv) {
                 if (cfd == -1) {
                     // 产生中断时不处理
                     if (errno == EINTR) {
+                int cfd = 0;
+                while ((cfd = accept(lfd, (struct sockaddr *)&c_addr, &len)) != -1) {
+                    if (HttpConn::m_user_count >= MAX_FD) {
+                        // 目前连接数已满，无法接受更多连接
+                        printf("connection number overload\n");
+                        close(cfd);
+                        continue;
+                    }
+                    // 在数组中记录客户端连接信息
+                    users[cfd].Init(cfd);
+                    // 输出客户端信息
+                    char clientIP[16];
+                    inet_ntop(AF_INET, &c_addr.sin_addr.s_addr, clientIP, sizeof(clientIP));
+                    unsigned short clientPort = ntohs(c_addr.sin_port);
+                    printf("client ip is %s, port is %d\n", clientIP, clientPort);
+                }
+                if (cfd == -1) {
+                    // 产生中断或者读取完fd数据时不处理
+                    if (errno == EINTR || errno == EAGAIN) {
                         continue;
                     }
                     perror("accept");

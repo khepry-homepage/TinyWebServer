@@ -1,5 +1,6 @@
 #include "../include/http_conn.h"
 
+
 // 定义HTTP响应的一些状态信息
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -16,6 +17,36 @@ const char *default_req_uri = "index.html"; // default request uriname
 std::string doc_root = "/home/khepry/coding/web_server/html/"; // resource root dirname
 int HttpConn::m_epollfd = -1; // 全局唯一的epoll实例
 int HttpConn::m_user_count = -1; // 统计用户的数量
+// 支持的MIME类型
+std::unordered_map<std::string, std::string> mime_map = {
+  {".html", "text/html"},
+  {".xml", "text/xml"},
+  {".xhtml", "application/xhtml+xml"},
+  {".txt", "text/plain"},
+  {".rtf", "application/rtf"},
+  {".pdf", "application/pdf"},
+  {".js", "application/javascript"},
+  {".word", "application/msword"},
+  {".png", "image/png"},
+  {".gif", "image/gif"},
+  {".jpg", "image/jpeg"},
+  {".jpeg", "image/jpeg"},
+  {".au", "audio/basic"},
+  {".mpeg", "video/mpeg"},
+  {".mpg", "video/mpeg"},
+  {".avi", "video/x-msvideo"},
+  {".gz", "application/x-gzip"},
+  {".svg", "image/svg+xml"},
+  {".css", "text/css"},
+  {"default","text/plain"}
+};
+
+
+const char *default_req_uri = "index.html"; // default request uriname
+std::string doc_root = "/home/khepry/coding/web_server/static/"; // resource root dirname
+int HttpConn::m_epollfd = -1; // 全局唯一的epoll实例
+int HttpConn::m_user_count = -1; // 统计用户的数量
+DBConnPool *HttpConn::coon_pool = nullptr; // 数据库连接池
 
 
 /** @fn: int GetGmtTime(char* szGmtTime)
@@ -138,6 +169,7 @@ void HttpConn::Init(HttpRequest *hr, HttpConn *hc) {
   hr->method = HttpRequest::METHOD_NOT_SUPPORT;
   hr->version = HttpRequest::VERSION_NOT_SUPPORT;
   hr->uri = const_cast<char*>(default_req_uri);
+  hr->mime_type = nullptr;
   hr->content = nullptr;
   hr->header_option.clear();
   hc->Init();
@@ -148,11 +180,14 @@ void HttpConn::Init() {
   memset(m_filename, 0, sizeof(m_filename));
   memset(read_buf, 0, sizeof(read_buf));
   memset(write_buf, 0, sizeof(write_buf));
+  memset(m_iv, 0, sizeof(struct iovec) * 2);
   read_idx = 0;
   start_idx = 0;
   check_idx = 0;
   write_idx = 0;
   bytes_to_send = 0;
+  bytes_have_send = 0;
+  m_iv_count = 0;
 }
 
 HttpConn::HTTP_CODE
@@ -160,6 +195,7 @@ HttpConn::ProcessRead() {
   LINE_STATE line_state = LINE_OK;
   HTTP_CODE parse_state = NO_REQUEST;
   while ((line_state = ParseLine()) == LINE_OK) {
+  while (hr->process_state == CHECK_STATE_BODY || (line_state = ParseLine()) == LINE_OK) {
     char *line = read_buf + start_idx;
     start_idx = check_idx;
     switch (hr->process_state)
@@ -209,6 +245,54 @@ HttpConn::DoRequest() {
   if (strlen(hr->uri) == 0) {
     hr->uri = default_req_uri;
   }
+  /* 
+   * 处理POST请求
+   */
+  if (hr->method == HttpRequest::POST) {
+    if (strcasecmp(hr->uri, "register") != 0 && strcasecmp(hr->uri, "login") != 0) {
+      return FORBIDDEN_REQUEST;
+    }
+    char username[50]{0};
+    char password[50]{0};
+    // 提取用户名和密码 username=root&password=123
+    int i = 9;
+    for (; hr->content[i] != '&'; ++i) {
+      username[i - 9] = hr->content[i];
+    }
+    i += 10;
+    for (int j = i; hr->content[j] != '\0'; ++j) {
+      password[j - i] = hr->content[j];
+    }
+    ConnRAII conn_raii(HttpConn::coon_pool);
+    MYSQL *mysql = conn_raii.GetConn();
+    std::unique_ptr<char> sql_insert(new char[200]); 
+    // 注册请求
+    if (strcasecmp(hr->uri, "register") == 0) {
+      snprintf(sql_insert.get(), 199, "insert into users(username, password) values('%s', '%s')", username, password);
+      int res = mysql_query(mysql, sql_insert.get()); // 插入用户名和密码
+      if (res == 0) {
+        return GET_REQUEST;
+      }
+      return BAD_REQUEST;
+    }
+    // 登录请求
+    else {
+      snprintf(sql_insert.get(), 199, "select * from users where username='%s' and password='%s'", username, password);
+      if (mysql_query(mysql, sql_insert.get()) == 0) {
+        MYSQL_RES *mysql_res = mysql_store_result(mysql);
+        if (mysql_res != nullptr && mysql_num_rows(mysql_res) != 0) {
+          return GET_REQUEST;
+        }
+      }
+      return BAD_REQUEST;
+    }
+  }
+
+  /* 
+   *  处理GET请求
+   */
+
+  strcpy(m_filename, doc_root.c_str());
   memcpy(m_filename + doc_root.length(), hr->uri, strlen(hr->uri) + 1);
   // 文件是否存在
   if (stat(m_filename, &m_file_stat) == -1) {
@@ -269,6 +353,10 @@ bool HttpConn::ProcessWrite(HTTP_CODE code) {
     m_iv[1].iov_len = m_file_stat.st_size;
     m_iv_count = 2;
     return true;
+  case GET_REQUEST:
+    AddStatusLine(200, ok_200_title);
+    AddResponseHeader(0);
+    break;
   default:
     return false;;
   }
@@ -335,6 +423,16 @@ HttpConn::ParseRequestLine(char *line, HttpRequest *hr) {
   }
   line = tmp;
 
+  // 若请求uri为空，使用默认uri
+  if (strlen(hr->uri) == 0) {
+    hr->uri = default_req_uri;
+  }
+  // 防止缓冲区溢出攻击与设置文件MIME类型
+  if (strlen(hr->uri) + 1 > FILENAME_LEN - doc_root.length()) {
+    return BAD_REQUEST;
+  }
+  hr->SetMIME(hr->uri);
+  line = tmp;
   if (strcasecmp(line, "HTTP/1.0") == 0) {
     hr->version = HttpRequest::HTTP_10;
   }
@@ -432,12 +530,14 @@ bool HttpConn::Write() {
     // 响应行和响应头未发送完毕
     if (bytes_have_send <= write_idx) {
       m_iv[0].iov_base = m_iv[0].iov_base + bytes_have_send;
+      m_iv[0].iov_base = (uint8_t *)m_iv[0].iov_base + bytes_have_send;
       m_iv[0].iov_len -= bytes_have_send;
     }
     // 响应行和响应头已发送完毕
     else {
       m_iv[0].iov_len = 0;
       m_iv[1].iov_base = m_iv[1].iov_base + bytes_have_send - write_idx;
+      m_iv[1].iov_base = (uint8_t *)m_iv[1].iov_base + bytes_have_send - write_idx;
       m_iv[1].iov_len -= (bytes_have_send - write_idx);
     }
     if (bytes_to_send == 0) {
@@ -481,6 +581,7 @@ bool HttpConn::AddStatusLine(int code, const char *content) {
   else if (hr->version == HttpRequest::HTTP_11) {
     return AddResponseLine("%s %d %s\r\n", "HTTP/1.1", code, content);
   }
+  return false;
 }
 
 bool HttpConn::AddResponseHeader(int content_length) {
@@ -496,6 +597,16 @@ bool HttpConn::AddResponseHeader(int content_length) {
     AddResponseLine("Content-Length: %d\r\n", content_length) &&
     AddResponseLine("Connection: %s\r\n", hr->header_option[HttpRequest::Connection]) &&
     AddResponseLine("Content-Type: %s; %s\r\n", "text/html", "charset=iso-8859-1") && 
+  if (hr->mime_type != nullptr) {
+    AddResponseLine("Content-Type: %s; %s\r\n", hr->mime_type, "charset=utf-8"); 
+  }
+  if (
+    AddResponseLine("Date: %s\r\n", date) &&
+    AddResponseLine("Server: %s\r\n", "Apache/2.4.52 (Ubuntu)") &&
+    AddResponseLine("Keep-Alive: %s\r\n", "timeout=5") &&
+    AddResponseLine("Content-Length: %d\r\n", content_length) &&
+    AddResponseLine("Connection: %s\r\n", hr->header_option[HttpRequest::Connection]) &&
+    AddResponseLine("Cache-Control: %s\r\n", "public, max-age=0") && 
     AddResponseLine("%s", "\r\n")
   ) {
     return true;
@@ -514,3 +625,20 @@ void HttpConn::unmap() {
     m_file_addr = nullptr;
   }
 }
+
+bool HttpRequest::SetMIME(const char *filename) {
+  const char *extension = strstr(filename, ".");
+  if (extension == nullptr) {
+    return false;
+  }
+  std::unordered_map<std::string, std::string>::iterator it;
+  // 设置MIME类型
+  if ((it = mime_map.find(std::string(extension))) == mime_map.end()) {
+    mime_type = mime_map["default"].c_str();
+  }
+  else {
+    mime_type = it->second.c_str();
+  }
+  return true;
+}
+

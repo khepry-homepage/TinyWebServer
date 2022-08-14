@@ -1,5 +1,12 @@
 #include "../include/db_connpool.h"
 
+std::string DBConnPool::url;
+std::string DBConnPool::user;
+std::string DBConnPool::password;
+std::string DBConnPool::db_name;
+int DBConnPool::port;
+unsigned int DBConnPool::max_conns;
+
 DBConnPool::DBConnPool() : m_sem(DBConnPool::max_conns) {
   for (int i = 0; i < max_conns; ++i) {
     MYSQL *conn = nullptr;
@@ -10,6 +17,7 @@ DBConnPool::DBConnPool() : m_sem(DBConnPool::max_conns) {
     }
     conn = mysql_real_connect(conn, DBConnPool::url.c_str(), DBConnPool::user.c_str(),
       DBConnPool::password.c_str(), DBConnPool::db_name.c_str(), DBConnPool::port, nullptr, 0);
+
     if (conn == nullptr) {
       std::cout << "Error:" << mysql_error(conn);
       exit(1);
@@ -19,6 +27,19 @@ DBConnPool::DBConnPool() : m_sem(DBConnPool::max_conns) {
 }
 
 bool DBConnPool::Init(std::string url, std::string user, std::string password,
+DBConnPool::~DBConnPool() {
+  m_lock.lock();
+  if (m_conns.size() > 0) {
+    std::list<MYSQL *>::iterator it;
+    for (it = m_conns.begin(); it != m_conns.end(); ++it) {
+      mysql_close(*it);
+    }
+    m_conns.clear();
+  }
+  m_lock.unlock();
+}
+
+void DBConnPool::Init(std::string url, std::string user, std::string password,
   std::string db_name, int port, unsigned int max_conns) {
   DBConnPool::url = url;
   DBConnPool::user = user;
@@ -54,6 +75,9 @@ bool DBConnPool::ReleaseConnection(MYSQL *conn) {
 }
 
 ConnRAII::ConnRAII(MYSQL *c, DBConnPool *cp) : conn(c), conn_pool(cp) {}
+ConnRAII::ConnRAII(DBConnPool *cp) : conn_pool(cp) {
+  this->conn = cp->GetConnection();
+}
 
 ConnRAII::~ConnRAII() {
   this->conn_pool->ReleaseConnection(this->conn);

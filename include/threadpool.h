@@ -4,6 +4,7 @@
 #include "locker.h"
 #include <list>
 #include <sys/sysinfo.h>
+#include <ctime>
 
 template <typename T>
 class threadpool {
@@ -45,6 +46,7 @@ public:
   static void * worker(void * args) {
     threadpool *tp = (threadpool *)args;
     tp->run();
+    return nullptr;
   }
   void run() {
     while (m_thread_run) {
