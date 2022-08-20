@@ -3,7 +3,6 @@
 
 #include <list>
 #include <iostream>
-#include <mysql.h>
 #include <mysql/mysql.h>
 #include "./locker.h"
 
@@ -11,7 +10,6 @@
 class DBConnPool {
 public:
   static DBConnPool *GetInstance(); // 获取DBConnPool实例
-  static bool Init(std::string, std::string, std::string, std::string, int, unsigned int); // 初始化连接池
   static void Init(std::string, std::string, std::string, std::string, int, unsigned int); // 初始化连接池
   MYSQL *GetConnection(); // 获取连接
   bool ReleaseConnection(MYSQL *); // 释放连接
@@ -33,7 +31,6 @@ private:
 // 数据库连接管理类
 class ConnRAII {
 public:
-  ConnRAII(MYSQL *, DBConnPool *);
   ConnRAII(DBConnPool *);
   ~ConnRAII();
   MYSQL *GetConn();

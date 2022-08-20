@@ -13,10 +13,6 @@ const char* error_500_title = "Internal Error";
 const char* error_500_form = "There was an unusual problem serving the requested file.\n";
 
 
-const char *default_req_uri = "index.html"; // default request uriname
-std::string doc_root = "/home/khepry/coding/web_server/html/"; // resource root dirname
-int HttpConn::m_epollfd = -1; // 全局唯一的epoll实例
-int HttpConn::m_user_count = -1; // 统计用户的数量
 // 支持的MIME类型
 std::unordered_map<std::string, std::string> mime_map = {
   {".html", "text/html"},
@@ -194,7 +190,6 @@ HttpConn::HTTP_CODE
 HttpConn::ProcessRead() {
   LINE_STATE line_state = LINE_OK;
   HTTP_CODE parse_state = NO_REQUEST;
-  while ((line_state = ParseLine()) == LINE_OK) {
   while (hr->process_state == CHECK_STATE_BODY || (line_state = ParseLine()) == LINE_OK) {
     char *line = read_buf + start_idx;
     start_idx = check_idx;
@@ -228,8 +223,8 @@ HttpConn::ProcessRead() {
       break;
     }
     default: {
-        return INTERNAL_ERROR;      
-      }
+      return INTERNAL_ERROR;      
+    }
     }
   }
   if (line_state == LINE_BAD) {
@@ -529,14 +524,12 @@ bool HttpConn::Write() {
     bytes_have_send += bytes_write;
     // 响应行和响应头未发送完毕
     if (bytes_have_send <= write_idx) {
-      m_iv[0].iov_base = m_iv[0].iov_base + bytes_have_send;
       m_iv[0].iov_base = (uint8_t *)m_iv[0].iov_base + bytes_have_send;
       m_iv[0].iov_len -= bytes_have_send;
     }
     // 响应行和响应头已发送完毕
     else {
       m_iv[0].iov_len = 0;
-      m_iv[1].iov_base = m_iv[1].iov_base + bytes_have_send - write_idx;
       m_iv[1].iov_base = (uint8_t *)m_iv[1].iov_base + bytes_have_send - write_idx;
       m_iv[1].iov_len -= (bytes_have_send - write_idx);
     }
@@ -590,13 +583,6 @@ bool HttpConn::AddResponseHeader(int content_length) {
     perror("GetGmtTime");
     return false;
   }
-  if (
-    AddResponseLine("Date: %s\r\n", date) &&
-    AddResponseLine("Server: %s\r\n", "Apache/2.4.52 (Ubuntu)") &&
-    AddResponseLine("X-Frame-Options: %s\r\n", "SAMEORIGIN") &&
-    AddResponseLine("Content-Length: %d\r\n", content_length) &&
-    AddResponseLine("Connection: %s\r\n", hr->header_option[HttpRequest::Connection]) &&
-    AddResponseLine("Content-Type: %s; %s\r\n", "text/html", "charset=iso-8859-1") && 
   if (hr->mime_type != nullptr) {
     AddResponseLine("Content-Type: %s; %s\r\n", hr->mime_type, "charset=utf-8"); 
   }
@@ -642,3 +628,6 @@ bool HttpRequest::SetMIME(const char *filename) {
   return true;
 }
 
+int HttpConn::GetSocketfd() {
+  return m_socketfd;
+}

@@ -17,7 +17,7 @@
 #include <time.h>
 #include <cstdarg>
 #include <memory>
-#include "../include/db_connpool.h"
+#include "./db_connpool.h"
 
 extern const char *default_req_uri;
 extern std::string doc_root;
@@ -79,6 +79,7 @@ public:
   bool AddResponseLine(const char *, ...); // 将格式化的数据写入写缓冲区中
   bool AddResponseContent(const char *); // 往写缓冲区添加错误提示信息
   void unmap();  // 解除映射内存
+  int GetSocketfd(); // 获取连接的文件描述符
   // DEBUG_TEST
   void CopyReadBuf(char *buf, int buf_len) {
     memcpy(read_buf + read_idx, buf, buf_len);
@@ -113,7 +114,6 @@ struct HttpRequest {
   enum HTTP_HEADER { Host, Connection, Upgrade_Insecure_Requests, User_Agent, Accept, Referer, Accept_Encoding, Accept_Language };
   HttpRequest() : 
     process_state(HttpConn::CHECK_STATE_REQUESTLINE), version(VERSION_NOT_SUPPORT),
-    method(METHOD_NOT_SUPPORT), uri(const_cast<char*>(default_req_uri)), content(nullptr) {};
     method(METHOD_NOT_SUPPORT), uri(const_cast<char*>(default_req_uri)), content(nullptr), mime_type(nullptr) {};
   bool SetMIME(const char *); // 获取文件的MIME类型
   HttpConn::PROCESS_STATE process_state;
@@ -121,9 +121,6 @@ struct HttpRequest {
   HTTP_VERSION version;
   const char *uri;
   const char *content;
-  std::unordered_map<HTTP_HEADER, char *> header_option;
-};
-
   const char *mime_type;
   std::unordered_map<HTTP_HEADER, char *> header_option;
 };

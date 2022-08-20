@@ -26,7 +26,6 @@ DBConnPool::DBConnPool() : m_sem(DBConnPool::max_conns) {
   }
 }
 
-bool DBConnPool::Init(std::string url, std::string user, std::string password,
 DBConnPool::~DBConnPool() {
   m_lock.lock();
   if (m_conns.size() > 0) {
@@ -39,8 +38,7 @@ DBConnPool::~DBConnPool() {
   m_lock.unlock();
 }
 
-void DBConnPool::Init(std::string url, std::string user, std::string password,
-  std::string db_name, int port, unsigned int max_conns) {
+void DBConnPool::Init(std::string url, std::string user, std::string password, std::string db_name, int port, unsigned int max_conns) {
   DBConnPool::url = url;
   DBConnPool::user = user;
   DBConnPool::password = password;
@@ -74,7 +72,6 @@ bool DBConnPool::ReleaseConnection(MYSQL *conn) {
   return true;
 }
 
-ConnRAII::ConnRAII(MYSQL *c, DBConnPool *cp) : conn(c), conn_pool(cp) {}
 ConnRAII::ConnRAII(DBConnPool *cp) : conn_pool(cp) {
   this->conn = cp->GetConnection();
 }

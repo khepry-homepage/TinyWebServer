@@ -6,21 +6,15 @@
 ROOT    		= $(PWD)
 TEST    		= $(ROOT)/test
 HTTP				= $(ROOT)/http
-CC      		= g++
-CFLAGS  		= -lgtest -lgtest_main -pthread -g
-RM      		= rm -rf
-
-MAIN_OBJS		= $(ROOT)/main.o $(HTTP)/http_conn.o
-TEST_OBJS		= $(TEST)/test.o $(HTTP)/http_conn.o
-MAIN_TARGET	= $(ROOT)/main.cpp $(HTTP)/http_conn.cpp
 DB_CONN			= $(ROOT)/db_conn
+TIMER				= $(ROOT)/timer
 CC      		= g++
 CFLAGS  		= -lgtest -lgtest_main -pthread -g -L /usr/lib/x86_64-linux-gnu/ -lmysqlclient
 RM      		= rm -rf
 
-MAIN_OBJS		= $(ROOT)/main.o $(HTTP)/http_conn.o $(DB_CONN)/db_connpool.o
+MAIN_OBJS		= $(ROOT)/main.o $(HTTP)/http_conn.o $(DB_CONN)/db_connpool.o $(ROOT)/server.o $(TIMER)/timer.o
 TEST_OBJS		= $(TEST)/test.o $(HTTP)/http_conn.o
-MAIN_TARGET	= $(ROOT)/main.cpp $(HTTP)/http_conn.cpp $(DB_CONN)/db_connpool.cpp
+MAIN_TARGET	= $(ROOT)/main.cpp $(HTTP)/http_conn.cpp $(DB_CONN)/db_connpool.cpp $(ROOT)/server.cpp $(TIMER)/timer.cpp
 TEST_TARGET	= $(TEST)/test.cpp $(HTTP)/http_conn.cpp
 
 server:$(MAIN_OBJS)
