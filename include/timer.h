@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <ctime>
+#include <sys/time.h>
 #include <unordered_map>
 #include "./locker.h"
 #include "./http_conn.h"
@@ -37,11 +37,11 @@ public:
 public:
   static TimerManager *GetInstance();
   static void Init(time_t max_age);
-  static void Tick(); // alarm,信号的回调函数
+  static void Tick(int); // alarm,信号的回调函数
   void HandleTick();
-  void AddTimer(HttpConn *, sockaddr_in); // 给连接添加定时器
-  void AdjustTimer(const int&); // 调整定时器位置到链表末尾
-  std::list<std::unique_ptr<s_timer>>::iterator DelTimer(const int&); // 删除连接绑定的定时器，并释放连接
+  void AddTimer(HttpConn *, sockaddr_in &); // 给连接添加定时器
+  void AdjustTimer(const int &); // 调整定时器位置到链表末尾
+  std::list<std::unique_ptr<s_timer>>::iterator DelTimer(const int &); // 删除连接绑定的定时器，并释放连接
   ~TimerManager();
 };
 

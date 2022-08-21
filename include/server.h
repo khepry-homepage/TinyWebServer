@@ -23,10 +23,11 @@ class Server
 {
 private:
   threadpool<HttpConn> *tp;
+  TimerManager *tm;
 public:
   void InitThreadPool();  // 初始化线程池
   void InitDBConn();  // 初始化数据库连接池
-  void InitTimer();
+  void InitTimer(); // 初始化定时器管理器
   void Run(int);
   Server();
   ~Server();

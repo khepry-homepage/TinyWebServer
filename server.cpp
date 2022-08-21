@@ -10,8 +10,17 @@ extern void RemoveFD(int epollfd, int fd);
 // 修改文件描述符，重置socket上的EPOLLONESHOT事件，以确保下次可读
 extern void ModFD(int epollfd, int fd, int ev);
 
+// 添加信号捕捉
+void addsig(int sig, void(*handler)(int)) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handler;
+    sigfillset(&sa.sa_mask); // 将所有信号加入信号集，表示系统支持的信号均为有效信号
+    sigaction(sig, &sa, nullptr); // 添加信号捕捉以及信号处理函数
+}
 
-Server::Server() : tp(nullptr) {}
+
+Server::Server() : tp(nullptr), tm(nullptr) {}
 
 Server::~Server() {}
 
@@ -31,7 +40,22 @@ void Server::InitDBConn() {
     HttpConn::coon_pool = DBConnPool::GetInstance();
 }
 
+void Server::InitTimer() {
+    TimerManager::Init(60);   // 初始化定时器保活时间，单位s
+    tm = TimerManager::GetInstance();
+}
+
 void Server::Run(int port) {
+    addsig(SIGPIPE, SIG_IGN); // 忽略
+    addsig(SIGALRM, TimerManager::Tick); // 添加接受定时器的ALARM信号的回调函数
+    
+    struct itimerval it;
+    it.it_value.tv_sec = 10; // 第一次到期的时间，即1s后到期
+    it.it_value.tv_usec = 0;
+    it.it_interval.tv_sec = 10; // 第一次到期的时间后用于重置的时间，即重置it_value为it_interval
+    it.it_interval.tv_usec = 0;
+    setitimer(ITIMER_REAL, &it, nullptr); // 间隔1s发送一次ALARM信号
+
     // 创建一个数组用于保存所有的客户端信息
     HttpConn *users = new HttpConn[MAX_FD]; 
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -88,11 +112,12 @@ void Server::Run(int port) {
                     }
                     // 在数组中记录客户端连接信息
                     users[cfd].Init(cfd);
+                    tm->AddTimer(users + cfd, c_addr);
                     // 输出客户端信息
                     char clientIP[16];
                     inet_ntop(AF_INET, &c_addr.sin_addr.s_addr, clientIP, sizeof(clientIP));
                     unsigned short clientPort = ntohs(c_addr.sin_port);
-                    printf("client ip is %s, port is %d\n", clientIP, clientPort);
+                    printf("建立连接 - client ip is %s, port is %d\n", clientIP, clientPort);
                 }
                 if (cfd == -1) {
                     // 产生中断或者读取完fd数据时不处理
@@ -103,23 +128,24 @@ void Server::Run(int port) {
                     exit(-1);
                 }
             }
-            // 异常事件，关闭文件描述符
+            // 异常事件，清理定时器并关闭文件描述符
             else if (events[i].events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {
-                users[sockfd].CloseConn();
+                tm->DelTimer(sockfd);
             }
             else if (events[i].events & EPOLLIN) {
                 // 一次性读取socket数据成功
                 if (users[sockfd].Read()) {
+                    tm->AdjustTimer(sockfd);
                     tp->append_task(users + sockfd);
                 }
                 else {
-                    users[sockfd].CloseConn();
+                    tm->DelTimer(sockfd);
                 }
             }
             else if (events[i].events & EPOLLOUT) {
                 // 一次性读取socket数据成功
                 if (!users[sockfd].Write()) {
-                    users[sockfd].CloseConn();
+                    tm->DelTimer(sockfd);
                 }
             }
         }

@@ -1,6 +1,5 @@
 #include "../include/http_conn.h"
 
-
 // 定义HTTP响应的一些状态信息
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -119,7 +118,7 @@ void HttpConn::CloseConn() {
 
 void HttpConn::Process() {
   // 解析请求
-  printf("parse http request...\n");
+  // printf("parse http request...\n");
   HTTP_CODE read_ret = ProcessRead();
   if (read_ret == NO_REQUEST) {
     // 请求不完整，重新注册读事件
@@ -127,7 +126,7 @@ void HttpConn::Process() {
     return;
   }
   // 生成响应
-  printf("produce http response...\n");
+  // printf("produce http response...\n");
   bool write_ret = ProcessWrite(read_ret);
   if (m_file_addr) {
     bytes_to_send += m_file_stat.st_size; 
