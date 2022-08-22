@@ -15,6 +15,8 @@ int main(int argc, char **argv) {
 
     server.InitTimer();
 
+    server.InitLog(true);
+
     server.Run(port);
     
     return 0;

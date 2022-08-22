@@ -44,7 +44,7 @@ int HttpConn::m_user_count = -1; // 统计用户的数量
 DBConnPool *HttpConn::coon_pool = nullptr; // 数据库连接池
 
 
-/** @fn: int GetGmtTime(char* szGmtTime)
+/** @fn : int GetGmtTime(char *szGmtTime)
  *  @brief : 获取格林制GMT时间
  *  @param (out) char * szGmtTime : 存放GMT时间的缓存区，外部传入
  *  @return int : szGmtTime的实际长度
@@ -262,7 +262,7 @@ HttpConn::DoRequest() {
     std::unique_ptr<char> sql_insert(new char[200]); 
     // 注册请求
     if (strcasecmp(hr->uri, "register") == 0) {
-      snprintf(sql_insert.get(), 199, "insert into users(username, password) values('%s', '%s')", username, password);
+      snprintf(sql_insert.get(), 200, "insert into users(username, password) values('%s', '%s')", username, password);
       int res = mysql_query(mysql, sql_insert.get()); // 插入用户名和密码
       if (res == 0) {
         return GET_REQUEST;
@@ -271,7 +271,7 @@ HttpConn::DoRequest() {
     }
     // 登录请求
     else {
-      snprintf(sql_insert.get(), 199, "select * from users where username='%s' and password='%s'", username, password);
+      snprintf(sql_insert.get(), 200, "select * from users where username='%s' and password='%s'", username, password);
       if (mysql_query(mysql, sql_insert.get()) == 0) {
         MYSQL_RES *mysql_res = mysql_store_result(mysql);
         if (mysql_res != nullptr && mysql_num_rows(mysql_res) != 0) {
@@ -556,9 +556,10 @@ bool HttpConn::AddResponseLine(const char *format, ...) {
   }
   std::va_list args;
   va_start(args, format);
-  int len = vsnprintf(write_buf + write_idx, WRITE_BUFFER_SIZE - write_idx - 1, format, args);
+  int len = vsnprintf(write_buf + write_idx, WRITE_BUFFER_SIZE - write_idx, format, args);
   // 写缓冲区溢出
   if (len >= WRITE_BUFFER_SIZE - write_idx - 1) {
+    va_end(args);
     return false;
   }
   write_idx += len;

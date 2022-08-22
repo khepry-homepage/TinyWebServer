@@ -45,6 +45,11 @@ void Server::InitTimer() {
     tm = TimerManager::GetInstance();
 }
 
+void Server::InitLog(bool async) {
+    Log::Init("server", Log::DEBUG, 5000, 1000, true);
+    log = Log::GetInstance();
+}
+
 void Server::Run(int port) {
     addsig(SIGPIPE, SIG_IGN); // 忽略
     addsig(SIGALRM, TimerManager::Tick); // 添加接受定时器的ALARM信号的回调函数
@@ -118,6 +123,7 @@ void Server::Run(int port) {
                     inet_ntop(AF_INET, &c_addr.sin_addr.s_addr, clientIP, sizeof(clientIP));
                     unsigned short clientPort = ntohs(c_addr.sin_port);
                     printf("建立连接 - client ip is %s, port is %d\n", clientIP, clientPort);
+                    LOG_INFO("[client] %s:%d", clientIP, clientPort);
                 }
                 if (cfd == -1) {
                     // 产生中断或者读取完fd数据时不处理
