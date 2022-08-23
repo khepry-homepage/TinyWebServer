@@ -18,6 +18,7 @@
 #include <cstdarg>
 #include <memory>
 #include "./db_connpool.h"
+#include "./log.h"
 
 extern const char *default_req_uri;
 extern std::string doc_root;
@@ -49,7 +50,7 @@ public:
   enum HTTP_CODE { NO_REQUEST, GET_REQUEST, BAD_REQUEST, NO_RESOURCE, FORBIDDEN_REQUEST, FILE_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION };  
   HttpConn();
   ~HttpConn();
-  void Init(int); // 初始化接受的客户端连接信息
+  void Init(int, const char *); // 初始化接受的客户端连接信息
   void CloseConn(); // 关闭连接
   bool Read(); // 读取socket
   bool Write(); // 写入socket
@@ -106,6 +107,10 @@ private:
   char *m_file_addr; // mmap映射的虚拟内存区域地址
   struct iovec m_iv[2]; // I/O向量结构体数组
   int m_iv_count; // I/O向量结构体数组大小
+
+  char m_clientIP[64]; // 客户端IP信息
+  char m_log_buf[LOG_BUF_SIZE]; // 日志缓冲区
+  int m_log_buf_idx;
 };
 
 struct HttpRequest {

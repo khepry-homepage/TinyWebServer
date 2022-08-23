@@ -1,6 +1,7 @@
 #include "../include/log.h"
 
-const char * default_log_root = "./logs";
+const char * default_accesslog_root = "./access_log";
+const char * default_errorlog_root = "./error_log";
 
 LogMsg::LogMsg() {
     log_filename = new char[MAX_FILENAME];
@@ -49,6 +50,12 @@ int Log::MAX_QUEUE_SIZE = 1000;
 bool Log::ASYNC_WRITE = true;
 
 Log::Log() : m_log_run(true), m_fp(nullptr) {
+	if (mkdir(default_accesslog_root, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) | 
+		mkdir(default_errorlog_root, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0) {
+		if (!(errno & EEXIST)) {
+			exit(-1);
+		} 
+	}
 	if (ASYNC_WRITE) {
 		if (pthread_create(&m_thread, nullptr, Log::Worker, this) != 0) {
 			throw std::exception();
@@ -118,11 +125,23 @@ bool Log::WriteLog(Log::LOG_LEVEL log_lever, const char *format, ...) {
 	va_end(args);
 	snprintf(m_log_buf + m_write_idx, 3, "\r\n"); // 添加换行符 
 	LogMsg msg;
-	snprintf(msg.log_filename, MAX_FILENAME, "%s/%s.%d-%02d-%02d.log", default_log_root, Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
-	int line = 1;
-	while ((line = line + GetFileLine(msg.log_filename)) > MAX_LOG_LINE) {
-		printf("debug\n");
-		snprintf(msg.log_filename, MAX_FILENAME, "%s/%s.%d-%02d-%02d_line_%d.log", default_log_root, Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, line);
+	if (log_lever >= Log::WARNING) { // 访问日志
+		snprintf(msg.log_filename, MAX_FILENAME, "%s/access.%s.%d-%02d-%02d.log", default_accesslog_root, Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
+	}
+	else { // 错误日志
+		snprintf(msg.log_filename, MAX_FILENAME, "%s/error.%s.%d-%02d-%02d.log", default_errorlog_root, Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
+	}
+	
+	int suffix = 1;
+	int line = 0;
+	while ((line = GetFileLine(msg.log_filename)) >= MAX_LOG_LINE) {
+		suffix += line;
+		if (log_lever >= Log::WARNING) { // 访问日志
+			snprintf(msg.log_filename, MAX_FILENAME, "%s/access.%s.%d-%02d-%02d_line_%d.log", default_accesslog_root, Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, suffix);
+		}
+		else { // 错误日志
+			snprintf(msg.log_filename, MAX_FILENAME, "%s/error.%s.%d-%02d-%02d.log", default_errorlog_root, Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
+		}
 	}
 	if (log_lever < Log::CONSOLE_LOG_LEVEL) { // 低于控制终端日志输出级别的日志刷盘
 		if (Log::ASYNC_WRITE) { // 异步写
@@ -136,7 +155,7 @@ bool Log::WriteLog(Log::LOG_LEVEL log_lever, const char *format, ...) {
 		}
 	}
 	else { // 高于等于控制终端日志输出级别的日志在控制台输出
-		printf("%s\n", m_log_buf);
+		printf("%s", m_log_buf);
 	}
 	m_write_idx = 0;
 	m_mutex.unlock();

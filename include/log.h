@@ -1,7 +1,9 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <sys/stat.h> 
 #include <sys/uio.h>
+#include <errno.h>
 #include <cstdarg>
 #include <cstdio>
 #include <ctime>
@@ -9,7 +11,6 @@
 #include <fstream>
 #include "./msg_queue.h"
 
-extern const char * default_log_root;
 
 #define LOG_DEBUG(format, ...) if(Log::GetInstance()->GetLogState()) {Log::GetInstance()->WriteLog(Log::DEBUG, format, ##__VA_ARGS__); Log::GetInstance()->Flush();}
 #define LOG_INFO(format, ...) if(Log::GetInstance()->GetLogState()) {Log::GetInstance()->WriteLog(Log::INFO, format, ##__VA_ARGS__); Log::GetInstance()->Flush();}
