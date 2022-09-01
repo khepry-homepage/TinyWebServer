@@ -1,92 +1,96 @@
 #ifndef THREADPOOL_H
 #define THREADPOOL_H
 
-#include "locker.h"
-#include <list>
 #include <sys/sysinfo.h>
+
 #include <ctime>
+#include <list>
+
+#include "locker.h"
 
 template <typename T>
-class threadpool {
-public:
-  threadpool(size_t mmr = 1000) 
-  : m_threads(nullptr), m_max_requests(mmr), m_queue_tasks(0), m_thread_run(true) {
+class ThreadPool {
+ public:
+  ThreadPool(size_t max_requests = 1000)
+      : threads_(nullptr),
+        max_requests_(max_requests),
+        queue_tasks_(0),
+        thread_run_(true) {
     // 初始化线程数 = 2 * 核心数 + 1
-    m_thread_number = 2 * get_nprocs() + 1;
-    m_threads = new pthread_t[m_thread_number];
-    if (m_threads == nullptr) {
+    thread_number_ = 2 * get_nprocs() + 1;
+    threads_ = new pthread_t[thread_number_];
+    if (threads_ == nullptr) {
       throw std::exception();
     }
 
     // 创建m_thread_number个线程
-    for (int i = 0; i < m_thread_number; ++i) {
+    for (int i = 0; i < thread_number_; ++i) {
       printf("create the %dth thread\n", i);
-      if (pthread_create(m_threads + i, nullptr, threadpool::worker, this) != 0) {
+      if (pthread_create(threads_ + i, nullptr, ThreadPool::Worker, this) !=
+          0) {
         throw std::exception();
       }
-      pthread_detach(m_threads[i]);
+      pthread_detach(threads_[i]);
     }
   }
-  ~threadpool() {
-    delete[] m_threads;
-    m_thread_run = false;
+  ~ThreadPool() {
+    delete[] threads_;
+    thread_run_ = false;
   }
-  bool append_task(T * task) {
-    m_queue_locker.lock();
+  bool AppendTask(T *task) {
+    queue_latch_.lock();
     // 大于最大连接处理数
-    if (m_requests.size() == m_max_requests) {
-      m_queue_locker.unlock();
+    if (requests.size() == max_requests_) {
+      queue_latch_.unlock();
       return false;
     }
-    m_requests.push_back(task);
-    m_queue_tasks.post();
-    m_queue_locker.unlock();
+    requests.push_back(task);
+    queue_tasks_.post();
+    queue_latch_.unlock();
     return true;
   }
-  static void * worker(void * args) {
-    threadpool *tp = (threadpool *)args;
-    tp->run();
+  static void *Worker(void *args) {
+    ThreadPool *thread_pool = (ThreadPool *)args;
+    thread_pool->Run();
     return nullptr;
   }
-  void run() {
-    while (m_thread_run) {
-      m_queue_tasks.wait();
-      m_queue_locker.lock();
-      T *task = m_requests.front();
+  void Run() {
+    while (thread_run_) {
+      queue_tasks_.wait();
+      queue_latch_.lock();
+      T *task = requests.front();
       if (task == nullptr) {
-        m_queue_locker.unlock();
+        queue_latch_.unlock();
         throw std::exception();
       }
-      m_requests.pop_front();
-      m_queue_locker.unlock();
+      requests.pop_front();
+      queue_latch_.unlock();
       /* to do */
       task->Process();
     }
   }
-private:
+
+ private:
   // 创建线程数
-  size_t m_thread_number;
+  size_t thread_number_;
 
   // 线程池数组
-  pthread_t * m_threads;
+  pthread_t *threads_;
 
   // 请求队列中最大的请求数
-  size_t m_max_requests;
+  size_t max_requests_;
 
   // 请求队列
-  std::list<T *> m_requests;
+  std::list<T *> requests;
 
   // 操作请求队列的互斥锁
-  locker m_queue_locker;
+  locker queue_latch_;
 
   // 信号量用于判断队列中的任务数
-  sem m_queue_tasks;
+  sem queue_tasks_;
 
   // 线程池的状态
-  bool m_thread_run;
+  bool thread_run_;
 };
-
-
-
 
 #endif

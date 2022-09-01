@@ -1,30 +1,47 @@
-# OBJS   代替  依赖文件
+# OBJ   代替  依赖文件
 # CC     代替  gcc
-# CFLAGS 代替  编译命令
-
 
 ROOT    		= $(PWD)
 TEST    		= $(ROOT)/test
-HTTP		 	= $(ROOT)/http
+SERVER			= $(ROOT)/tiny_server
+HTTP		 		= $(ROOT)/http
 DB_CONN			= $(ROOT)/db_conn
-LOG				= $(ROOT)/log
-TIMER			= $(ROOT)/timer
-CC      		= g++
-CFLAGS  		= -lgtest -lgtest_main -pthread -g -L /usr/lib/x86_64-linux-gnu/ -lmysqlclient
-RM      		= rm -rf
+LOG					= $(ROOT)/log
+TIMER				= $(ROOT)/timer
 
-MAIN_OBJS		= $(ROOT)/main.o $(HTTP)/http_conn.o $(DB_CONN)/db_connpool.o $(ROOT)/server.o $(TIMER)/timer.o $(LOG)/log.o
-TEST_OBJS		= $(TEST)/test.o $(HTTP)/http_conn.o
-MAIN_TARGET		= $(ROOT)/main.cpp $(HTTP)/http_conn.cpp $(DB_CONN)/db_connpool.cpp $(ROOT)/server.cpp $(TIMER)/timer.cpp $(LOG)/log.cpp
-TEST_TARGET		= $(TEST)/test.cpp $(HTTP)/http_conn.cpp
+VERSION     = 1.0
+CC   				= g++
+CFLAGS  		= -g -pthread
+LIB_PATH  	= -L /usr/lib/x86_64-linux-gnu/
+LIB_NAMES  	= -lmysqlclient
+LIB_TEST		= -lgtest -lgtest_main
+OBJ   			=	main.o server.o timer.o http_conn.o db_connpool.o log.o
+TEST_OBJ		= test.o http_conn.o
+TARGET  		=	server
+RM      		=	rm -rf
 
-server:$(MAIN_OBJS)
-	$(CC) $(MAIN_OBJS) -o $(ROOT)/server $(CFLAGS)
-	$(RM) $(MAIN_OBJS)
-test:$(TEST_OBJS)
-	$(CC) $(TEST_TARGET) -o $(TEST)/test  $(CFLAGS)
-	$(RM) $(TEST_OBJS)
+$(TARGET):$(OBJ)
+	$(CC) $< $(CFLAGS) -o $@ $(LIB_PATH) $(LIB_NAMES)
+test:$(TEST_OBJ)
+	$(CC) $< -o $@ 
+
+# compile
+main.o:$(ROOT)/main.cpp
+	$(CC) -o $@ -c $< $(CFLAGS)
+http_conn.o:$(HTTP)/http_conn.cpp
+	$(CC) -o $@ -c $< $(CFLAGS)
+db_connpool.o:$(DB_CONN)/db_connpool.cpp
+	$(CC) -o $@ -c $< $(CFLAGS)
+timer.o:$(TIMER)/timer.cpp
+	$(CC) -o $@ -c $< $(CFLAGS)
+log.o:$(LOG)/log.cpp
+	$(CC) -o $@ -c $< $(CFLAGS)
+server.o:$(SERVER)/server.cpp
+	$(CC) -o $@ -c $< $(CFLAGS)
+test.o:$(TEST)/test.cpp
+	$(CC) $(LIB_TEST) -o $@ -c $< $(CFLAGS)
+
+.PHONY:clean
 clean:
-	$(RM) $(ROOT)/server $(TEST)/test
-
-
+	@echo "Remove linked and compiled files......"
+	$(RM) $(OBJ) $(TARGET)

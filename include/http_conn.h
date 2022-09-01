@@ -1,22 +1,24 @@
 #ifndef HTTPCONNECTION_H
 #define HTTPCONNECTION_H
-#include <unordered_map>
+#include <errno.h>
+#include <fcntl.h>
+#include <string.h>
 #include <sys/epoll.h>
-#include <unistd.h>
-#include <sys/types.h>          /* See NOTES */
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
+#include <sys/types.h> /* See NOTES */
 #include <sys/uio.h>
-#include <errno.h>
-#include <cstdlib>
-#include <cstdio>
-#include <fcntl.h>
-#include <string>
-#include <string.h>
 #include <time.h>
+#include <unistd.h>
+
 #include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
+#include <string>
+#include <unordered_map>
+
 #include "./db_connpool.h"
 #include "./log.h"
 
@@ -26,16 +28,21 @@ extern std::string doc_root;
 struct HttpRequest;
 
 class HttpConn {
-public:
-  const static int READ_BUFFER_SIZE = 2048; // 读缓冲区大小
-  const static int WRITE_BUFFER_SIZE = 2048; // 写缓冲区大小
-  const static int FILENAME_LEN = 128; // 访问资源的文件名大小
-  static int m_epollfd; // 全局唯一的epoll实例
-  static int m_user_count; // 统计用户的数量
-  static DBConnPool *coon_pool; // 数据库连接池
+ public:
+  const static int READ_BUFFER_SIZE = 2048;   // 读缓冲区大小
+  const static int WRITE_BUFFER_SIZE = 2048;  // 写缓冲区大小
+  const static int FILENAME_LEN = 128;        // 访问资源的文件名大小
+  static int epollfd_;                        // 全局唯一的epoll实例
+  static int user_count_;                     // 统计用户的数量
+  static DBConnPool *coon_pool_;              // 数据库连接池
 
   enum LINE_STATE { LINE_OK, LINE_BAD, LINE_MORE };
-  enum PROCESS_STATE { CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER, CHECK_STATE_BODY, CHECK_STATE_FINISH};
+  enum PROCESS_STATE {
+    CHECK_STATE_REQUESTLINE = 0,
+    CHECK_STATE_HEADER,
+    CHECK_STATE_BODY,
+    CHECK_STATE_FINISH
+  };
   /*
       服务器处理HTTP请求的可能结果，报文解析的结果
       NO_REQUEST          :   请求不完整，需要继续读取客户数据
@@ -47,14 +54,27 @@ public:
       INTERNAL_ERROR      :   表示服务器内部错误
       CLOSED_CONNECTION   :   表示客户端已经关闭连接了
   */
-  enum HTTP_CODE { NO_REQUEST, GET_REQUEST, BAD_REQUEST, NO_RESOURCE, FORBIDDEN_REQUEST, FILE_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION };  
+  enum HTTP_CODE {
+    NO_REQUEST,
+    GET_REQUEST,
+    BAD_REQUEST,
+    NO_RESOURCE,
+    FORBIDDEN_REQUEST,
+    FILE_REQUEST,
+    INTERNAL_ERROR,
+    CLOSED_CONNECTION
+  };
   HttpConn();
   ~HttpConn();
-  void Init(int, const char *); // 初始化接受的客户端连接信息
-  void CloseConn(); // 关闭连接
-  bool Read(); // 读取socket
-  bool Write(); // 写入socket
-  void Process(); // 处理客户端请求
+
+  void Init();
+  void Init(int cfd, const char *client_ip);  // 初始化接受的客户端连接信息
+  static void Init(HttpRequest *h_request,
+                   HttpConn *h_coon);  // 初始化http请求解析状态
+  void CloseConn();                    // 关闭连接
+  bool Read();                         // 读取socket
+  bool Write();                        // 写入socket
+  void Process();                      // 处理客户端请求
   /*
       服务器处理HTTP请求的可能结果，报文解析的结果
       NO_REQUEST          :   请求不完整，需要继续读取客户数据
@@ -67,68 +87,80 @@ public:
       CLOSED_CONNECTION   :   表示客户端已经关闭连接了
   */
   HTTP_CODE ProcessRead();
-  bool ProcessWrite(HTTP_CODE);
   HTTP_CODE DoRequest();
-  static HTTP_CODE ParseRequestLine(char *, HttpRequest *);
-  static HTTP_CODE ParseHeader(char *, HttpRequest *);
-  static HTTP_CODE ParseBody(char *, HttpRequest *);
+  bool ProcessWrite(HTTP_CODE code);
   LINE_STATE ParseLine();
-  static void Init(HttpRequest *, HttpConn *); // 初始化http请求解析状态
-  void Init();
-  bool AddStatusLine(int, const char*); // 往写缓冲区添加状态行信息
-  bool AddResponseHeader(int); // 往写缓冲区添加响应头信息
-  bool AddResponseLine(const char *, ...); // 将格式化的数据写入写缓冲区中
-  bool AddResponseContent(const char *); // 往写缓冲区添加错误提示信息
-  void unmap();  // 解除映射内存
-  int GetSocketfd(); // 获取连接的文件描述符
+  static HTTP_CODE ParseRequestLine(char *line, HttpRequest *h_request);
+  static HTTP_CODE ParseHeader(char *line, HttpRequest *h_request);
+  static HTTP_CODE ParseBody(char *line, HttpRequest *h_request);
+  bool AddResponseLine(const char *format,
+                       ...);  // 将格式化的数据写入写缓冲区中
+  bool AddStatusLine(int code,
+                     const char *content);  // 往写缓冲区添加状态行信息
+  bool AddResponseHeader(int content_len);  // 往写缓冲区添加响应头信息
+  bool AddResponseContent(const char *content);  // 往写缓冲区添加错误提示信息
+  void UnMap();                                  // 解除映射内存
+  int GetSocketfd();  // 获取连接的文件描述符
   // DEBUG_TEST
   void CopyReadBuf(char *buf, int buf_len) {
-    memcpy(read_buf + read_idx, buf, buf_len);
-    read_idx += buf_len;
+    memcpy(read_buf_ + read_idx_, buf, buf_len);
+    read_idx_ += buf_len;
   }
-  HttpRequest *GetHR() {
-    return hr;
-  }
-private:
-  int m_socketfd; // 该http连接的socket
-  struct HttpRequest *hr;
-  char read_buf[READ_BUFFER_SIZE];
-  int read_idx; // 当前读取的字节位置
-  int start_idx; // 当前解析的行起始位置
-  int check_idx; // 当前解析的字节位置
+  HttpRequest *GetHR() { return h_request_; }
 
-  char write_buf[WRITE_BUFFER_SIZE];
-  int write_idx = 0;
-  int bytes_to_send = 0; // 需要发送的字节总数
-  int bytes_have_send = 0; // 已经发送的字节总数
+ private:
+  int socketfd_;  // 该http连接的socket
+  struct HttpRequest *h_request_;
+  char read_buf_[READ_BUFFER_SIZE];
+  int read_idx_;   // 当前读取的字节位置
+  int start_idx_;  // 当前解析的行起始位置
+  int check_idx_;  // 当前解析的字节位置
 
-  char m_filename[FILENAME_LEN]; // 目标文件的绝对路径
-  struct stat m_file_stat;  // 目标文件的状态。通过它我们可以判断文件是否存在、是否为目录、是否可读，并获取文件大小等信息
-  char *m_file_addr; // mmap映射的虚拟内存区域地址
-  struct iovec m_iv[2]; // I/O向量结构体数组
-  int m_iv_count; // I/O向量结构体数组大小
+  char write_buf_[WRITE_BUFFER_SIZE];
+  int write_idx_ = 0;
+  int bytes_to_send_ = 0;    // 需要发送的字节总数
+  int bytes_have_send_ = 0;  // 已经发送的字节总数
 
-  char m_clientIP[64]; // 客户端IP信息
-  char m_log_buf[LOG_BUF_SIZE]; // 日志缓冲区
-  int m_log_buf_idx;
+  char filename_[FILENAME_LEN];  // 目标文件的绝对路径
+  struct stat
+      file_stat_;  // 目标文件的状态。通过它我们可以判断文件是否存在、是否为目录、是否可读，并获取文件大小等信息
+  char *file_addr_;     // mmap映射的虚拟内存区域地址
+  struct iovec iv_[2];  // I/O向量结构体数组
+  int iv_count_;        // I/O向量结构体数组大小
+
+  char client_ip_[64];          // 客户端IP信息
+  char log_buf_[LOG_BUF_SIZE];  // 日志缓冲区
+  int log_buf_idx_;
 };
 
 struct HttpRequest {
   enum HTTP_VERSION { HTTP_10 = 0, HTTP_11, VERSION_NOT_SUPPORT };
   enum HTTP_METHOD { GET = 0, POST, PUT, METHOD_NOT_SUPPORT };
-  enum HTTP_HEADER { Host, Connection, Upgrade_Insecure_Requests, User_Agent, Accept, Referer, Accept_Encoding, Accept_Language };
-  HttpRequest() : 
-    process_state(HttpConn::CHECK_STATE_REQUESTLINE), version(VERSION_NOT_SUPPORT),
-    method(METHOD_NOT_SUPPORT), uri(const_cast<char*>(default_req_uri)), content(nullptr), mime_type(nullptr) {};
-  bool SetMIME(const char *); // 获取文件的MIME类型
-  HttpConn::PROCESS_STATE process_state;
-  HTTP_METHOD method;
-  HTTP_VERSION version;
-  const char *uri;
-  const char *content;
-  const char *mime_type;
-  std::unordered_map<HTTP_HEADER, char *> header_option;
+  enum HTTP_HEADER {
+    Host,
+    Connection,
+    Upgrade_Insecure_Requests,
+    User_Agent,
+    Accept,
+    Referer,
+    Accept_Encoding,
+    Accept_Language
+  };
+  HttpRequest()
+      : process_state_(HttpConn::CHECK_STATE_REQUESTLINE),
+        version_(VERSION_NOT_SUPPORT),
+        method_(METHOD_NOT_SUPPORT),
+        uri_(const_cast<char *>(default_req_uri)),
+        content_(nullptr),
+        mime_type_(nullptr){};
+  bool SetMIME(const char *filename);  // 获取文件的MIME类型
+  HttpConn::PROCESS_STATE process_state_;
+  HTTP_METHOD method_;
+  HTTP_VERSION version_;
+  const char *uri_;
+  const char *content_;
+  const char *mime_type_;
+  std::unordered_map<HTTP_HEADER, char *> header_option_;
 };
-
 
 #endif

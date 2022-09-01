@@ -1,25 +1,23 @@
 #include "./include/server.h"
 
-int main(int argc, char **argv)
-{
-    if (argc <= 1)
-    {
-        printf("请按照如下格式运行程序: %s port_number\n", basename(argv[0]));
-        exit(-1);
-    }
-    int port = atoi(argv[1]);
+int main(int argc, char **argv) {
+  if (argc <= 1) {
+    printf("请按照如下格式运行程序: %s port_number\n", basename(argv[0]));
+    exit(-1);
+  }
+  int port = atoi(argv[1]);
 
-    Server server;
+  Server server;
 
-    server.InitThreadPool();
+  server.InitThreadPool();
 
-    server.InitDBConn();
+  server.InitDBConn();
 
-    server.InitTimer();
+  server.InitTimer();
 
-    server.InitLog(true);
+  server.InitLog(true);
 
-    server.Run(port);
+  server.Run(port);
 
-    return 0;
+  return 0;
 }
