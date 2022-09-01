@@ -19,8 +19,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "./db_connpool.h"
-#include "./log.h"
+#include "db_connpool.h"
+#include "log.h"
 
 extern const char *default_req_uri;
 extern std::string doc_root;
@@ -67,14 +67,14 @@ class HttpConn {
   HttpConn();
   ~HttpConn();
 
-  void Init();
-  void Init(int cfd, const char *client_ip);  // 初始化接受的客户端连接信息
   static void Init(HttpRequest *h_request,
                    HttpConn *h_coon);  // 初始化http请求解析状态
-  void CloseConn();                    // 关闭连接
-  bool Read();                         // 读取socket
-  bool Write();                        // 写入socket
-  void Process();                      // 处理客户端请求
+  void Init();
+  void Init(int cfd, const char *client_ip);  // 初始化接受的客户端连接信息
+  void CloseConn();                           // 关闭连接
+  bool Read();                                // 读取socket
+  bool Write();                               // 写入socket
+  void Process();                             // 处理客户端请求
   /*
       服务器处理HTTP请求的可能结果，报文解析的结果
       NO_REQUEST          :   请求不完整，需要继续读取客户数据

@@ -21,9 +21,10 @@ TARGET  		=	server
 RM      		=	rm -rf
 
 $(TARGET):$(OBJ)
-	$(CC) $< $(CFLAGS) -o $@ $(LIB_PATH) $(LIB_NAMES)
+	$(CC) $^ -o $@ $(CFLAGS) $(LIB_PATH) $(LIB_NAMES)
+	$(RM) $(OBJ)
 test:$(TEST_OBJ)
-	$(CC) $< -o $@ 
+	$(CC) $^ -o $@ $(LIB_PATH) $(LIB_NAMES)
 
 # compile
 main.o:$(ROOT)/main.cpp

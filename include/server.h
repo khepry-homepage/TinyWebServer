@@ -13,11 +13,11 @@
 #include <cstring>
 #include <iostream>
 
-#include "./db_connpool.h"
-#include "./http_conn.h"
-#include "./log.h"
-#include "./threadpool.h"
-#include "./timer.h"
+#include "db_connpool.h"
+#include "http_conn.h"
+#include "log.h"
+#include "threadpool.h"
+#include "timer.h"
 
 class Server {
  private:

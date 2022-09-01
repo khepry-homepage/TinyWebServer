@@ -7,6 +7,7 @@
 #include <list>
 
 #include "locker.h"
+#include "log.h"
 
 template <typename T>
 class ThreadPool {

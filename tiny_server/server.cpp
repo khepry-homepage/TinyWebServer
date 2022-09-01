@@ -107,7 +107,7 @@ void Server::Run(int port) {
         while ((cfd = accept(lfd, (struct sockaddr *)&c_addr, &len)) != -1) {
           if (HttpConn::user_count_ >= MAX_FD) {
             // 目前连接数已满，无法接受更多连接
-            printf("connection number overload\n");
+            LOG_DEBUG("connect fail and can not accept overload connection");
             close(cfd);
             continue;
           }

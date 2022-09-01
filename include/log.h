@@ -11,7 +11,7 @@
 #include <ctime>
 #include <fstream>
 
-#include "./msg_queue.h"
+#include "msg_queue.h"
 
 #define LOG_DEBUG(format, ...)                                       \
   if (Log::GetInstance()->GetLogState()) {                           \

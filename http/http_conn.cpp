@@ -125,7 +125,7 @@ void HttpConn::Process() {
   // 生成响应
   // printf("produce http response...\n");
   bool write_ret = ProcessWrite(read_ret);
-  LOG_INFO("%s", log_buf_);
+  LOG_DEBUG("%s", log_buf_);
   if (file_addr_) {
     bytes_to_send_ += file_stat_.st_size;
   }
@@ -150,16 +150,6 @@ HttpConn::HttpConn() {
 }
 
 HttpConn::~HttpConn() { delete h_request_; }
-
-void HttpConn::Init(int cfd, const char *clientIP) {
-  Init();
-  socketfd_ = cfd;
-  // 设置端口复用
-  int reuse = 1;
-  setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-  AddFD(HttpConn::epollfd_, cfd, true);
-  strcpy(client_ip_, clientIP);
-}
 
 void HttpConn::Init(HttpRequest *h_request, HttpConn *h_conn) {
   h_request->process_state_ = HttpConn::CHECK_STATE_REQUESTLINE;
@@ -186,6 +176,16 @@ void HttpConn::Init() {
   bytes_to_send_ = 0;
   bytes_have_send_ = 0;
   iv_count_ = 0;
+}
+
+void HttpConn::Init(int cfd, const char *clientIP) {
+  HttpConn::Init(h_request_, this);
+  socketfd_ = cfd;
+  // 设置端口复用
+  int reuse = 1;
+  setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+  AddFD(HttpConn::epollfd_, cfd, true);
+  strcpy(client_ip_, clientIP);
 }
 
 HttpConn::HTTP_CODE HttpConn::ProcessRead() {
@@ -559,7 +559,9 @@ bool HttpConn::Write() {
     if (bytes_to_send_ == 0) {
       UnMap();
       // 不释放连接
-      if (strcasecmp(h_request_->header_option_[HttpRequest::Connection],
+      if (h_request_->header_option_.find(HttpRequest::Connection) !=
+              h_request_->header_option_.end() &&
+          strcasecmp(h_request_->header_option_[HttpRequest::Connection],
                      "keep-alive") == 0) {
         ModFD(epollfd_, socketfd_, EPOLLIN);
         HttpConn::Init(h_request_, this);
@@ -612,12 +614,17 @@ bool HttpConn::AddResponseHeader(int content_length) {
     AddResponseLine("Content-Type: %s; %s\r\n", h_request_->mime_type_,
                     "charset=utf-8");
   }
+  if (h_request_->header_option_.find(HttpRequest::Connection) !=
+      h_request_->header_option_.end()) {
+    AddResponseLine("Connection: %s\r\n",
+                    h_request_->header_option_[HttpRequest::Connection]);
+  } else {
+    AddResponseLine("Connection: %s\r\n", "Close");
+  }
   if (AddResponseLine("Date: %s\r\n", date) &&
       AddResponseLine("Server: %s\r\n", "Apache/2.4.52 (Ubuntu)") &&
       AddResponseLine("Keep-Alive: %s\r\n", "timeout=5") &&
       AddResponseLine("Content-Length: %d\r\n", content_length) &&
-      AddResponseLine("Connection: %s\r\n",
-                      h_request_->header_option_[HttpRequest::Connection]) &&
       AddResponseLine("Cache-Control: %s\r\n", "public, max-age=0") &&
       AddResponseLine("%s", "\r\n")) {
     return true;

@@ -15,8 +15,8 @@ s_timer::~s_timer() {
   if (h_conn_ != nullptr) {
     char client_ip[16];
     inet_ntop(AF_INET, &c_addr_.sin_addr.s_addr, client_ip, sizeof(client_ip));
-    printf("释放连接 - client IP is %s and port is %d\n", client_ip,
-           ntohs(c_addr_.sin_port));
+    LOG_DEBUG("释放连接 - client IP is %s and port is %d", client_ip,
+              ntohs(c_addr_.sin_port));
     h_conn_->CloseConn();
     h_conn_ = nullptr;
   }

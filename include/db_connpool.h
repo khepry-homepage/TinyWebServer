@@ -6,7 +6,7 @@
 #include <iostream>
 #include <list>
 
-#include "./locker.h"
+#include "locker.h"
 
 // 单例数据库连接池
 class DBConnPool {

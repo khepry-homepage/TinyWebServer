@@ -3,7 +3,7 @@
 
 #include <queue>
 
-#include "./locker.h"
+#include "locker.h"
 
 template <typename T>
 class MsgQueue {

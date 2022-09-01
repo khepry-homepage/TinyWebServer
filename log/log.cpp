@@ -89,11 +89,11 @@ void *Log::Worker(void *args) {
 
 bool Log::GetLogState() { return log_run_; }
 
-bool Log::WriteLog(Log::LOG_LEVEL log_lever, const char *format, ...) {
+bool Log::WriteLog(Log::LOG_LEVEL log_level, const char *format, ...) {
   time_t timer = time(nullptr);
   tm *t = localtime(&timer);
   char level[16];
-  switch (log_lever) {
+  switch (log_level) {
     case EMERG:
       strcpy(level, "[EMERG]:");
       break;
@@ -122,9 +122,11 @@ bool Log::WriteLog(Log::LOG_LEVEL log_lever, const char *format, ...) {
       break;
   }
   latch_.lock();
-  int len = snprintf(log_buf_, LOG_BUF_SIZE, "%s %d-%02d-%02d %02d:%02d:%02d ",
-                     level, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
-                     t->tm_hour, t->tm_min, t->tm_sec);
+  memset(log_buf_, 0, LOG_BUF_SIZE);
+  int len =
+      snprintf(log_buf_ + write_idx_, LOG_BUF_SIZE - write_idx_,
+               "%s %d-%02d-%02d %02d:%02d:%02d ", level, t->tm_year + 1900,
+               t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
   write_idx_ += len;
 
   std::va_list args;
@@ -142,7 +144,7 @@ bool Log::WriteLog(Log::LOG_LEVEL log_lever, const char *format, ...) {
   va_end(args);
   snprintf(log_buf_ + write_idx_, 3, "\r\n");  // 添加换行符
   LogMsg msg;
-  if (log_lever >= Log::WARNING) {  // 访问日志
+  if (log_level >= Log::WARNING) {  // 访问日志
     snprintf(msg.log_filename_, MAX_FILENAME, "%s/access.%s.%d-%02d-%02d.log",
              DEFAULT_ACCESSLOG_ROOT, Log::LOG_FILENAME, t->tm_year + 1900,
              t->tm_mon + 1, t->tm_mday);
@@ -155,7 +157,7 @@ bool Log::WriteLog(Log::LOG_LEVEL log_lever, const char *format, ...) {
   int line = 0;
   while ((line = GetFileLine(msg.log_filename_)) >= MAX_LOG_LINE) {
     suffix += line;
-    if (log_lever >= Log::WARNING) {  // 访问日志
+    if (log_level >= Log::WARNING) {  // 访问日志
       snprintf(msg.log_filename_, MAX_FILENAME,
                "%s/access.%s.%d-%02d-%02d_line_%d.log", DEFAULT_ACCESSLOG_ROOT,
                Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
@@ -166,7 +168,7 @@ bool Log::WriteLog(Log::LOG_LEVEL log_lever, const char *format, ...) {
                t->tm_mon + 1, t->tm_mday);
     }
   }
-  if (log_lever <
+  if (log_level <
       Log::CONSOLE_LOG_LEVEL) {  // 低于控制终端日志输出级别的日志刷盘
     if (Log::ASYNC_WRITE) {  // 异步写
       strcpy(msg.log_buf_, log_buf_);
