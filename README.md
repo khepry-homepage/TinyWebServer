@@ -26,3 +26,6 @@ version--1.0
 
 # 运行
 `./server 8080`
+
+# 压力测试
+`cd ./webbench-1.5 && webbench -c [concurrency] -t [duration] [host:port]`
