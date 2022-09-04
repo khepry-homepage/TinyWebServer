@@ -17,6 +17,7 @@ class MsgQueue {
   ~MsgQueue<T>();
   bool Push(T&& msg);
   T Pop();
+  size_t Size();
 };
 
 template <typename T>
@@ -47,6 +48,14 @@ T MsgQueue<T>::Pop() {
   msg_queue_.pop();
   latch_.unlock();
   return std::move(msg);
+}
+
+template <typename T>
+size_t MsgQueue<T>::Size() {
+  latch_.lock();
+  size_t size = msg_queue_.size();
+  latch_.unlock();
+  return size;
 }
 
 #endif

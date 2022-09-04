@@ -505,7 +505,8 @@ HttpConn::HTTP_CODE HttpConn::ParseBody(char *line, HttpRequest *h_request) {
 bool HttpConn::Read() {
   int bytes_read = 0;
   while (true) {
-    bytes_read = recv(socketfd_, read_buf_, READ_BUFFER_SIZE - read_idx_, 0);
+    bytes_read =
+        recv(socketfd_, read_buf_ + read_idx_, READ_BUFFER_SIZE - read_idx_, 0);
     if (bytes_read == -1) {
       // 已读完所有数据
       if (errno == EAGAIN || errno == EWOULDBLOCK) {

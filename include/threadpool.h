@@ -24,7 +24,7 @@ class ThreadPool {
       throw std::exception();
     }
 
-    // 创建m_thread_number个线程
+    // 创建thread_number_个线程
     for (int i = 0; i < thread_number_; ++i) {
       printf("create the %dth thread\n", i);
       if (pthread_create(threads_ + i, nullptr, ThreadPool::Worker, this) !=
