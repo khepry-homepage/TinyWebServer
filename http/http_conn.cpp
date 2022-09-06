@@ -260,8 +260,8 @@ HttpConn::HTTP_CODE HttpConn::DoRequest() {
     for (int j = i; h_request_->content_[j] != '\0'; ++j) {
       password[j - i] = h_request_->content_[j];
     }
-    ConnRAII conn_raii(HttpConn::coon_pool_);
-    MYSQL *mysql = conn_raii.GetConn();
+    ConnInstanceRAII conn_ins_raii(HttpConn::coon_pool_);
+    MYSQL *mysql = conn_ins_raii.GetConn();
     std::unique_ptr<char> sql_insert(new char[200]);
     // 注册请求
     if (strcasecmp(h_request_->uri_, "register") == 0) {

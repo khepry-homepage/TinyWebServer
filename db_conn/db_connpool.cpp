@@ -24,7 +24,7 @@ DBConnPool::DBConnPool() : conns_(max_conns_) {
       std::cout << "Error:" << mysql_error(conn) << std::endl;
       exit(1);
     }
-    conns_.Push(DBConnPoolInstance(conn));
+    conns_.Push(std::make_shared<DBConnPoolInstance>(conn));
   }
 }
 
@@ -45,10 +45,13 @@ DBConnPool *DBConnPool::GetInstance() {
   return &conns_;
 }
 
-DBConnPoolInstance DBConnPool::GetConnection() { return conns_.Pop(); }
+std::shared_ptr<DBConnPoolInstance> DBConnPool::GetConnection() {
+  return conns_.Pop();
+}
 
-bool DBConnPool::ReleaseConnection(DBConnPoolInstance &db_connpool_instance) {
-  if (db_connpool_instance.GetConn() == nullptr) {
+bool DBConnPool::ReleaseConnection(
+    std::shared_ptr<DBConnPoolInstance> db_connpool_instance) {
+  if (db_connpool_instance.get()->GetConn() == nullptr) {
     return false;
   }
   conns_.Push(std::move(db_connpool_instance));
@@ -56,11 +59,6 @@ bool DBConnPool::ReleaseConnection(DBConnPoolInstance &db_connpool_instance) {
 }
 
 DBConnPoolInstance::DBConnPoolInstance(MYSQL *conn) : conn_(conn) {}
-DBConnPoolInstance::DBConnPoolInstance(
-    DBConnPoolInstance &&db_connpool_instance) {
-  this->conn_ = db_connpool_instance.conn_;
-  db_connpool_instance.conn_ = nullptr;
-}
 DBConnPoolInstance::~DBConnPoolInstance() {
   if (conn_ != nullptr) {
     mysql_close(conn_);
@@ -68,9 +66,11 @@ DBConnPoolInstance::~DBConnPoolInstance() {
 }
 MYSQL *DBConnPoolInstance::GetConn() { return conn_; }
 
-ConnRAII::ConnRAII(DBConnPool *conn_pool)
+ConnInstanceRAII::ConnInstanceRAII(DBConnPool *conn_pool)
     : conn_pool_(conn_pool), conn_(conn_pool->GetConnection()) {}
 
-ConnRAII::~ConnRAII() { this->conn_pool_->ReleaseConnection(this->conn_); }
+ConnInstanceRAII::~ConnInstanceRAII() {
+  this->conn_pool_->ReleaseConnection(this->conn_);
+}
 
-MYSQL *ConnRAII::GetConn() { return this->conn_.GetConn(); }
+MYSQL *ConnInstanceRAII::GetConn() { return this->conn_.get()->GetConn(); }
