@@ -23,6 +23,9 @@ class locker {
   pthread_mutex_t latch_;
 };
 
+/**
+ *  @brief: 存在唤醒丢失问题!
+ */
 class cond {
  public:
   cond() {
@@ -43,7 +46,7 @@ class cond {
 
 class sem {
  public:
-  sem(u_int32_t value) {
+  sem(uint32_t value) {
     if (sem_init(&sem_, 0, value) != 0) {
       throw std::exception();
     }

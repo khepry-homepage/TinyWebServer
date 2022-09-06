@@ -5,14 +5,14 @@ std::string DBConnPool::user_;
 std::string DBConnPool::password_;
 std::string DBConnPool::db_name_;
 int DBConnPool::port_;
-unsigned int DBConnPool::max_conns_;
+uint32_t DBConnPool::max_conns_;
 
-DBConnPool::DBConnPool() : sem_(DBConnPool::max_conns_) {
+DBConnPool::DBConnPool() : conns_(max_conns_) {
   for (int i = 0; i < max_conns_; ++i) {
     MYSQL *conn = nullptr;
     conn = mysql_init(conn);
     if (conn == nullptr) {
-      std::cout << "Error:" << mysql_error(conn);
+      std::cout << "Error:" << mysql_error(conn) << std::endl;
       exit(1);
     }
     conn = mysql_real_connect(
@@ -21,24 +21,14 @@ DBConnPool::DBConnPool() : sem_(DBConnPool::max_conns_) {
         DBConnPool::port_, nullptr, 0);
 
     if (conn == nullptr) {
-      std::cout << "Error:" << mysql_error(conn);
+      std::cout << "Error:" << mysql_error(conn) << std::endl;
       exit(1);
     }
-    conns_.push_back(conn);
+    conns_.Push(DBConnPoolInstance(conn));
   }
 }
 
-DBConnPool::~DBConnPool() {
-  lock_.lock();
-  if (conns_.size() > 0) {
-    std::list<MYSQL *>::iterator it;
-    for (it = conns_.begin(); it != conns_.end(); ++it) {
-      mysql_close(*it);
-    }
-    conns_.clear();
-  }
-  lock_.unlock();
-}
+DBConnPool::~DBConnPool() {}
 
 void DBConnPool::Init(std::string url, std::string user, std::string password,
                       std::string db_name, int port, u_int32_t max_conns) {
@@ -55,30 +45,32 @@ DBConnPool *DBConnPool::GetInstance() {
   return &conns_;
 }
 
-MYSQL *DBConnPool::GetConnection() {
-  sem_.wait();
-  lock_.lock();
-  MYSQL *conn = conns_.front();
-  conns_.pop_front();
-  lock_.unlock();
-  return conn;
-}
+DBConnPoolInstance DBConnPool::GetConnection() { return conns_.Pop(); }
 
-bool DBConnPool::ReleaseConnection(MYSQL *conn) {
-  if (conn == nullptr) {
+bool DBConnPool::ReleaseConnection(DBConnPoolInstance &db_connpool_instance) {
+  if (db_connpool_instance.GetConn() == nullptr) {
     return false;
   }
-  lock_.lock();
-  conns_.push_back(conn);
-  lock_.unlock();
-  sem_.post();
+  conns_.Push(std::move(db_connpool_instance));
   return true;
 }
 
-ConnRAII::ConnRAII(DBConnPool *conn_pool) : conn_pool_(conn_pool) {
-  this->conn_ = conn_pool_->GetConnection();
+DBConnPoolInstance::DBConnPoolInstance(MYSQL *conn) : conn_(conn) {}
+DBConnPoolInstance::DBConnPoolInstance(
+    DBConnPoolInstance &&db_connpool_instance) {
+  this->conn_ = db_connpool_instance.conn_;
+  db_connpool_instance.conn_ = nullptr;
 }
+DBConnPoolInstance::~DBConnPoolInstance() {
+  if (conn_ != nullptr) {
+    mysql_close(conn_);
+  }
+}
+MYSQL *DBConnPoolInstance::GetConn() { return conn_; }
+
+ConnRAII::ConnRAII(DBConnPool *conn_pool)
+    : conn_pool_(conn_pool), conn_(conn_pool->GetConnection()) {}
 
 ConnRAII::~ConnRAII() { this->conn_pool_->ReleaseConnection(this->conn_); }
 
-MYSQL *ConnRAII::GetConn() { return this->conn_; }
+MYSQL *ConnRAII::GetConn() { return this->conn_.GetConn(); }

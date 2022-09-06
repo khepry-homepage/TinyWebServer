@@ -1,7 +1,8 @@
 #ifndef MSG_QUEUE_H
 #define MSG_QUEUE_H
 
-#include <queue>
+#include <iostream>
+#include <list>
 
 #include "locker.h"
 
@@ -9,20 +10,23 @@ template <typename T>
 class MsgQueue {
  private:
   const int max_queue_size_;
-  std::queue<T> msg_queue_;  // 消息队列
-  locker latch_;             // 辅助消息队列的互斥锁
-  cond cond_;                // 用于异步读写消息队列的条件锁
+  std::list<T> msg_queue_;  // 消息队列
+  mutable locker latch_;    // 辅助消息队列的互斥锁
+  sem sem_;                 // 用于判断消息队列资源数的信号量
  public:
-  MsgQueue<T>(int size = 0) : max_queue_size_(size) {}
+  MsgQueue<T>(int size = 0, uint32_t cnt = 0)
+      : max_queue_size_(size), sem_(cnt) {}
   ~MsgQueue<T>();
   bool Push(T&& msg);
+  bool Push(const T& msg);
   T Pop();
-  size_t Size();
+  size_t Size() const;
 };
 
 template <typename T>
 MsgQueue<T>::~MsgQueue() {
-  std::queue<T>().swap(msg_queue_);
+  msg_queue_.clear();
+  std::list<T>().swap(msg_queue_);
 }
 
 template <typename T>
@@ -32,26 +36,37 @@ bool MsgQueue<T>::Push(T&& msg) {
     latch_.unlock();
     return false;
   }
-  msg_queue_.push(std::forward<T&&>(msg));
+  msg_queue_.emplace_back(std::forward<T&&>(msg));
   latch_.unlock();
-  cond_.notify();
+  sem_.post();
+  return true;
+}
+
+template <typename T>
+bool MsgQueue<T>::Push(const T& msg) {
+  latch_.lock();
+  if (msg_queue_.size() > max_queue_size_) {
+    latch_.unlock();
+    return false;
+  }
+  msg_queue_.emplace_back(msg);
+  latch_.unlock();
+  sem_.post();
   return true;
 }
 
 template <typename T>
 T MsgQueue<T>::Pop() {
+  sem_.wait();
   latch_.lock();
-  if (msg_queue_.size() <= 0) {
-    cond_.wait(latch_.get());
-  }
   T msg(std::move(msg_queue_.front()));
-  msg_queue_.pop();
+  msg_queue_.pop_front();
   latch_.unlock();
   return std::move(msg);
 }
 
 template <typename T>
-size_t MsgQueue<T>::Size() {
+size_t MsgQueue<T>::Size() const {
   latch_.lock();
   size_t size = msg_queue_.size();
   latch_.unlock();
