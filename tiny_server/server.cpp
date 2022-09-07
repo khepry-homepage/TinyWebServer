@@ -38,7 +38,7 @@ void Server::InitDBConn() {
 }
 
 void Server::InitTimer() {
-  TimerManager::Init(5);  // 初始化定时器保活时间，单位s
+  TimerManager::Init(60);  // 初始化定时器保活时间，单位s
   timer_manager_ = TimerManager::GetInstance();
 }
 

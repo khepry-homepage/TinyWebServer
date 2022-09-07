@@ -11,7 +11,7 @@ int main(int argc, char **argv) {
 
   server.InitThreadPool();
 
-  // server.InitDBConn();
+  server.InitDBConn();
 
   server.InitTimer();
 

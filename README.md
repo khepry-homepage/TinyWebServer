@@ -29,3 +29,10 @@ version--1.0
 
 # 压力测试
 `cd ./webbench-1.5 && webbench -c [concurrency] -t [duration] [host:port]`
+
+# 测试结果
+  - 测试环境: 
+    - 客户机: Ubuntu20.04 内存8G 2核
+    - 服务器: Ubuntu22.04 内存8G 4核
+  - 测试结果: 10000+QPS
+![image-20220907230526200.png](https://s2.loli.net/2022/09/07/ezJbM4UtBpP9Isn.png)
