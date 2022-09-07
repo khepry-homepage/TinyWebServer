@@ -11,15 +11,15 @@
 #include "http_conn.h"
 #include "locker.h"
 #include "log.h"
-
+namespace TinyWebServer {
 class TimerManager;
 void ModFD(int epollfd, int fd, int events);
 
 struct s_timer {
   sockaddr_in c_addr_;
   time_t expire_time_;
-  HttpConn *h_conn_;
-  s_timer(HttpConn *h_conn, sockaddr_in addr);
+  SmartHttpConn h_conn_;
+  s_timer(SmartHttpConn h_conn, sockaddr_in addr);
   s_timer(s_timer &&st);
   ~s_timer();
 };
@@ -41,11 +41,12 @@ class TimerManager {
   static void Init(time_t max_age);
   static void Tick(int invalid_param);  // alarm,信号的回调函数
   void HandleTick();
-  void AddTimer(HttpConn *h_conn, sockaddr_in &addr);  // 给连接添加定时器
+  void AddTimer(SmartHttpConn h_conn, sockaddr_in &addr);  // 给连接添加定时器
   void AdjustTimer(const int &socketfd);  // 调整定时器位置到链表末尾
   std::list<std::unique_ptr<s_timer>>::iterator DelTimer(
       const int &socketfd);  // 删除连接绑定的定时器，并释放连接
   ~TimerManager();
 };
+}  // namespace TinyWebServer
 
 #endif

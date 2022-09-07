@@ -1,5 +1,6 @@
 #include "../include/http_conn.h"
 
+namespace TinyWebServer {
 // 定义HTTP响应的一些状态信息
 const char *ok_200_title = "OK";
 const char *error_400_title = "Bad Request";
@@ -42,7 +43,7 @@ const char *default_req_uri = "index.html";  // default request uriname
 std::string doc_root =
     "/home/khepry/coding/web_server/static/";  // resource root dirname
 int HttpConn::epollfd_ = -1;                   // 全局唯一的epoll实例
-int HttpConn::user_count_ = -1;                // 统计用户的数量
+std::atomic<int> HttpConn::user_count_ = -1;   // 统计用户的数量
 DBConnPool *HttpConn::coon_pool_ = nullptr;    // 数据库连接池
 
 /** @fn : int GetGmtTime(char *szGmtTime)
@@ -261,29 +262,22 @@ HttpConn::HTTP_CODE HttpConn::DoRequest() {
       password[j - i] = h_request_->content_[j];
     }
     ConnInstanceRAII conn_ins_raii(HttpConn::coon_pool_);
-    MYSQL *mysql = conn_ins_raii.GetConn();
-    std::unique_ptr<char> sql_insert(new char[200]);
+    std::unique_ptr<char[]> sql_insert(new char[200]);
     // 注册请求
     if (strcasecmp(h_request_->uri_, "register") == 0) {
       snprintf(sql_insert.get(), 200,
                "insert into users(username, password) values('%s', '%s')",
                username, password);
-      int res = mysql_query(mysql, sql_insert.get());  // 插入用户名和密码
-      if (res == 0) {
-        return GET_REQUEST;
-      }
-      return BAD_REQUEST;
+      return conn_ins_raii.SqlQuery(sql_insert.get()) ? GET_REQUEST
+                                                      : BAD_REQUEST;
     }
     // 登录请求
     else {
       snprintf(sql_insert.get(), 200,
                "select * from users where username='%s' and password='%s'",
                username, password);
-      if (mysql_query(mysql, sql_insert.get()) == 0) {
-        MYSQL_RES *mysql_res = mysql_store_result(mysql);
-        if (mysql_res != nullptr && mysql_num_rows(mysql_res) != 0) {
-          return GET_REQUEST;
-        }
+      if (!conn_ins_raii.SqlQueryIsEmpty(sql_insert.get())) {
+        return GET_REQUEST;
       }
       return BAD_REQUEST;
     }
@@ -660,3 +654,4 @@ bool HttpRequest::SetMIME(const char *filename) {
 }
 
 int HttpConn::GetSocketfd() { return socketfd_; }
+}  // namespace TinyWebServer

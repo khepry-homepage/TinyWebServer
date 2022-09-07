@@ -1,9 +1,9 @@
+#include <cstdio>
 #include <string>
 
 #include "../include/http_conn.h"
-using namespace std;
-#include <cstdio>
 
+namespace TinyWebServer {
 TEST(HTTP_PARSER_TEST, PROCESS_READ) {
   char text[] =
       "GET /562f25980001b1b106000338.jpg HTTP/1.1\r\n"
@@ -61,3 +61,4 @@ TEST(HTTP_PARSER_TEST, PROCESS_READ) {
   hc.CopyReadBuf(err_text2, strlen(err_text2) + 1);
   ASSERT_TRUE(hc.ProcessRead() == HttpConn::BAD_REQUEST);
 }
+}  // namespace TinyWebServer

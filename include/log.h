@@ -12,7 +12,7 @@
 #include <fstream>
 
 #include "msg_queue.h"
-
+namespace TinyWebServer {
 #define LOG_DEBUG(format, ...)                                       \
   if (Log::GetInstance()->GetLogState()) {                           \
     Log::GetInstance()->WriteLog(Log::DEBUG, format, ##__VA_ARGS__); \
@@ -107,5 +107,6 @@ class Log {
   FILE *fp_;                    // 日志文件指针
   bool log_run_;
 };
+}  // namespace TinyWebServer
 
 #endif

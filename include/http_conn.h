@@ -12,6 +12,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -22,9 +23,9 @@
 #include "db_connpool.h"
 #include "log.h"
 
+namespace TinyWebServer {
 extern const char *default_req_uri;
 extern std::string doc_root;
-
 struct HttpRequest;
 
 class HttpConn {
@@ -33,7 +34,7 @@ class HttpConn {
   const static int WRITE_BUFFER_SIZE = 2048;  // 写缓冲区大小
   const static int FILENAME_LEN = 128;        // 访问资源的文件名大小
   static int epollfd_;                        // 全局唯一的epoll实例
-  static int user_count_;                     // 统计用户的数量
+  static std::atomic<int> user_count_;        // 统计用户的数量
   static DBConnPool *coon_pool_;              // 数据库连接池
 
   enum LINE_STATE { LINE_OK, LINE_BAD, LINE_MORE };
@@ -101,16 +102,10 @@ class HttpConn {
   bool AddResponseContent(const char *content);  // 往写缓冲区添加错误提示信息
   void UnMap();                                  // 解除映射内存
   int GetSocketfd();  // 获取连接的文件描述符
-  // DEBUG_TEST
-  void CopyReadBuf(char *buf, int buf_len) {
-    memcpy(read_buf_ + read_idx_, buf, buf_len);
-    read_idx_ += buf_len;
-  }
-  HttpRequest *GetHR() { return h_request_; }
 
  private:
   int socketfd_;  // 该http连接的socket
-  struct HttpRequest *h_request_;
+  HttpRequest *h_request_;
   char read_buf_[READ_BUFFER_SIZE];
   int read_idx_;   // 当前读取的字节位置
   int start_idx_;  // 当前解析的行起始位置
@@ -160,7 +155,10 @@ struct HttpRequest {
   const char *uri_;
   const char *content_;
   const char *mime_type_;
-  std::unordered_map<HTTP_HEADER, char *> header_option_;
+  std::unordered_map<HTTP_HEADER, const char *> header_option_;
 };
+
+typedef std::shared_ptr<HttpConn> SmartHttpConn;
+}  // namespace TinyWebServer
 
 #endif

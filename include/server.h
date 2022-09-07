@@ -13,17 +13,19 @@
 #include <cstring>
 #include <iostream>
 
-#include "db_connpool.h"
 #include "http_conn.h"
 #include "log.h"
 #include "threadpool.h"
 #include "timer.h"
 
+namespace TinyWebServer {
 class Server {
  private:
-  ThreadPool<HttpConn> *thread_pool_;
+  ThreadPool<SmartHttpConn> *thread_pool_;
   TimerManager *timer_manager_;
   Log *log_;
+  std::unordered_map<int, SmartHttpConn> http_conns_;
+  bool server_run_;
 
  public:
   void InitThreadPool();     // 初始化线程池
@@ -32,7 +34,8 @@ class Server {
   void InitLog(bool async);  // 初始化同步/异步日志系统
   void Run(int port);
   Server();
-  ~Server();
+  ~Server() = default;
 };
+}  // namespace TinyWebServer
 
 #endif

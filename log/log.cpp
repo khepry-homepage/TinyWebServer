@@ -1,5 +1,6 @@
 #include "../include/log.h"
 
+namespace TinyWebServer {
 const char *DEFAULT_ACCESSLOG_ROOT = "./access_log";
 const char *DEFAULT_ERRORLOG_ROOT = "./error_log";
 
@@ -91,7 +92,8 @@ bool Log::GetLogState() { return log_run_; }
 
 bool Log::WriteLog(Log::LOG_LEVEL log_level, const char *format, ...) {
   time_t timer = time(nullptr);
-  tm *t = localtime(&timer);
+  tm t;
+  localtime_r(&timer, &t);
   char level[16];
   switch (log_level) {
     case EMERG:
@@ -123,10 +125,9 @@ bool Log::WriteLog(Log::LOG_LEVEL log_level, const char *format, ...) {
   }
   latch_.lock();
   memset(log_buf_, 0, LOG_BUF_SIZE);
-  int len =
-      snprintf(log_buf_ + write_idx_, LOG_BUF_SIZE - write_idx_,
-               "%s %d-%02d-%02d %02d:%02d:%02d ", level, t->tm_year + 1900,
-               t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+  int len = snprintf(log_buf_ + write_idx_, LOG_BUF_SIZE - write_idx_,
+                     "%s %d-%02d-%02d %02d:%02d:%02d ", level, t.tm_year + 1900,
+                     t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
   write_idx_ += len;
 
   std::va_list args;
@@ -146,12 +147,12 @@ bool Log::WriteLog(Log::LOG_LEVEL log_level, const char *format, ...) {
   LogMsg msg;
   if (log_level >= Log::WARNING) {  // 访问日志
     snprintf(msg.log_filename_, MAX_FILENAME, "%s/access.%s.%d-%02d-%02d.log",
-             DEFAULT_ACCESSLOG_ROOT, Log::LOG_FILENAME, t->tm_year + 1900,
-             t->tm_mon + 1, t->tm_mday);
+             DEFAULT_ACCESSLOG_ROOT, Log::LOG_FILENAME, t.tm_year + 1900,
+             t.tm_mon + 1, t.tm_mday);
   } else {  // 错误日志
     snprintf(msg.log_filename_, MAX_FILENAME, "%s/error.%s.%d-%02d-%02d.log",
-             DEFAULT_ERRORLOG_ROOT, Log::LOG_FILENAME, t->tm_year + 1900,
-             t->tm_mon + 1, t->tm_mday);
+             DEFAULT_ERRORLOG_ROOT, Log::LOG_FILENAME, t.tm_year + 1900,
+             t.tm_mon + 1, t.tm_mday);
   }
   int suffix = 1;
   int line = 0;
@@ -160,12 +161,12 @@ bool Log::WriteLog(Log::LOG_LEVEL log_level, const char *format, ...) {
     if (log_level >= Log::WARNING) {  // 访问日志
       snprintf(msg.log_filename_, MAX_FILENAME,
                "%s/access.%s.%d-%02d-%02d_line_%d.log", DEFAULT_ACCESSLOG_ROOT,
-               Log::LOG_FILENAME, t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+               Log::LOG_FILENAME, t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
                suffix);
     } else {  // 错误日志
       snprintf(msg.log_filename_, MAX_FILENAME, "%s/error.%s.%d-%02d-%02d.log",
-               DEFAULT_ERRORLOG_ROOT, Log::LOG_FILENAME, t->tm_year + 1900,
-               t->tm_mon + 1, t->tm_mday);
+               DEFAULT_ERRORLOG_ROOT, Log::LOG_FILENAME, t.tm_year + 1900,
+               t.tm_mon + 1, t.tm_mday);
     }
   }
   if (log_level <
@@ -196,3 +197,4 @@ void Log::HandleAsyncWrite() {
     fclose(fp_);
   }
 }
+}  // namespace TinyWebServer

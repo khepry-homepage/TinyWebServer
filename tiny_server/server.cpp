@@ -1,5 +1,7 @@
 #include "../include/server.h"
 
+#include <memory>
+namespace TinyWebServer {
 #define MAX_FD 65535  // 最大的文件描述符个数
 
 // 添加文件描述符到epoll中
@@ -10,7 +12,7 @@ extern void RemoveFD(int epollfd, int fd);
 extern void ModFD(int epollfd, int fd, int ev);
 
 // 添加信号捕捉
-void addsig(int sig, void (*handler)(int)) {
+void AddSig(int sig, void (*handler)(int)) {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = handler;
@@ -19,13 +21,12 @@ void addsig(int sig, void (*handler)(int)) {
   sigaction(sig, &sa, nullptr);  // 添加信号捕捉以及信号处理函数
 }
 
-Server::Server() : thread_pool_(nullptr), timer_manager_(nullptr) {}
-
-Server::~Server() {}
+Server::Server()
+    : thread_pool_(nullptr), timer_manager_(nullptr), server_run_(true) {}
 
 void Server::InitThreadPool() {
   try {
-    thread_pool_ = new ThreadPool<HttpConn>;
+    thread_pool_ = new ThreadPool<SmartHttpConn>;
   } catch (...) {
     exit(-1);
   }
@@ -47,8 +48,8 @@ void Server::InitLog(bool async) {
 }
 
 void Server::Run(int port) {
-  addsig(SIGPIPE, SIG_IGN);  // 忽略
-  addsig(SIGALRM, TimerManager::Tick);  // 添加接受定时器的ALARM信号的回调函数
+  AddSig(SIGPIPE, SIG_IGN);  // 忽略
+  AddSig(SIGALRM, TimerManager::Tick);  // 添加接受定时器的ALARM信号的回调函数
 
   struct itimerval it;
   it.it_value.tv_sec = 10;  // 第一次到期的时间，即1s后到期
@@ -57,8 +58,6 @@ void Server::Run(int port) {
   it.it_interval.tv_usec = 0;
   setitimer(ITIMER_REAL, &it, nullptr);  // 间隔1s发送一次ALARM信号
 
-  // 创建一个数组用于保存所有的客户端信息
-  HttpConn *users = new HttpConn[MAX_FD];
   int lfd = socket(AF_INET, SOCK_STREAM, 0);
   if (lfd == -1) {
     perror("socket");
@@ -95,7 +94,7 @@ void Server::Run(int port) {
   int maxevents = 1024;
   struct epoll_event events[1024];
   memset(events, 0, sizeof(events));
-  while (1) {
+  while (server_run_) {
     int fd_cnt = epoll_wait(epfd, events, maxevents, -1);
     for (int i = 0; i < fd_cnt; ++i) {
       int sockfd = events[i].data.fd;
@@ -117,9 +116,11 @@ void Server::Run(int port) {
                     sizeof(cilent_ip));
           u_int16_t client_port = ntohs(c_addr.sin_port);
 
-          // 在数组中记录客户端连接信息
-          users[cfd].Init(cfd, cilent_ip);
-          timer_manager_->AddTimer(users + cfd, c_addr);
+          // 记录客户端连接信息
+          SmartHttpConn http_conn(std::make_shared<HttpConn>());
+          http_conn->Init(cfd, cilent_ip);
+          timer_manager_->AddTimer(http_conn, c_addr);
+          http_conns_.insert({cfd, http_conn});
           LOG_DEBUG("[client %s:%d]", cilent_ip, client_port);
         }
         // 产生中断或者读取完fd数据时不处理
@@ -129,23 +130,27 @@ void Server::Run(int port) {
         perror("accept");
         exit(-1);
       }
-      // 异常事件，清理定时器并关闭文件描述符
+      // 异常事件，清理定时器并关闭连接
       else if (events[i].events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {
         timer_manager_->DelTimer(sockfd);
+        http_conns_.erase(sockfd);
       } else if (events[i].events & EPOLLIN) {
         // 一次性读取socket数据成功
-        if (users[sockfd].Read()) {
+        if (http_conns_[sockfd]->Read()) {
           timer_manager_->AdjustTimer(sockfd);
-          thread_pool_->AppendTask(users + sockfd);
+          thread_pool_->AppendTask(http_conns_[sockfd]);
         } else {
           timer_manager_->DelTimer(sockfd);
+          http_conns_.erase(sockfd);
         }
       } else if (events[i].events & EPOLLOUT) {
         // 一次性写入socket数据失败，清理定时器
-        if (!users[sockfd].Write()) {
+        if (!http_conns_[sockfd]->Write()) {
           timer_manager_->DelTimer(sockfd);
+          http_conns_.erase(sockfd);
         }
       }
     }
   }
 }
+}  // namespace TinyWebServer

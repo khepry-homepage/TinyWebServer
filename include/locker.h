@@ -6,7 +6,10 @@
 
 #include <exception>
 
-class locker {
+#include "../utils/NonCopyable.h"
+
+namespace TinyWebServer {
+class locker : NonCopyable {
  public:
   locker() {
     if (pthread_mutex_init(&latch_, nullptr) != 0) {
@@ -59,5 +62,5 @@ class sem {
  private:
   sem_t sem_;
 };
-
+}  // namespace TinyWebServer
 #endif

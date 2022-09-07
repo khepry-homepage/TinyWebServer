@@ -7,11 +7,11 @@ int main(int argc, char **argv) {
   }
   int port = atoi(argv[1]);
 
-  Server server;
+  TinyWebServer::Server server;
 
   server.InitThreadPool();
 
-  server.InitDBConn();
+  // server.InitDBConn();
 
   server.InitTimer();
 

@@ -3,13 +3,14 @@
 
 #include <sys/sysinfo.h>
 
+#include <cstdio>
 #include <ctime>
 #include <list>
 
-// #include "locker.h"
 #include "log.h"
 #include "msg_queue.h"
 
+namespace TinyWebServer {
 template <typename T>
 class ThreadPool {
  public:
@@ -33,7 +34,7 @@ class ThreadPool {
     }
   }
   ~ThreadPool() { thread_run_ = false; }
-  bool AppendTask(T *task) {
+  bool AppendTask(T task) {
     // 大于最大连接处理数
     if (requests.Size() == max_requests_) {
       return false;
@@ -48,7 +49,7 @@ class ThreadPool {
   }
   void Run() {
     while (thread_run_) {
-      T *task = requests.Pop();
+      T task = requests.Pop();
       /* to do */
       task->Process();
     }
@@ -65,10 +66,11 @@ class ThreadPool {
   size_t max_requests_;
 
   // 请求队列
-  MsgQueue<T *> requests;
+  MsgQueue<T> requests;
 
   // 线程池的状态
   bool thread_run_;
 };
+}  // namespace TinyWebServer
 
 #endif

@@ -1,13 +1,13 @@
 #ifndef MSG_QUEUE_H
 #define MSG_QUEUE_H
 
-#include <iostream>
 #include <list>
 
 #include "locker.h"
 
+namespace TinyWebServer {
 template <typename T>
-class MsgQueue {
+class MsgQueue : NonCopyable {
  private:
   const int max_queue_size_;
   std::list<T> msg_queue_;  // 消息队列
@@ -72,5 +72,5 @@ size_t MsgQueue<T>::Size() const {
   latch_.unlock();
   return size;
 }
-
+}  // namespace TinyWebServer
 #endif
