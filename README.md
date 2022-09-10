@@ -1,6 +1,9 @@
 # TinyWebServer
 version--1.0
 
+# 同步IO模拟Proactor并发模型
+![同步IO模拟Proactor模式.png](https://s2.loli.net/2022/09/10/4P5EQwzRJqNdO2r.png)
+
 # 数据库"tiny_webserver"的"users"表设计说明
 
 |  字段名  | 长度 | 数据类型 | 是否为空 |          键类型           |               说明               |
