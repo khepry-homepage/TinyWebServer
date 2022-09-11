@@ -6,3 +6,5 @@
 [INFO]: 2022-09-11 11:02:50 [client 192.168.85.1] GET /vendors/LoginView-aa7f2eb3.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
 [INFO]: 2022-09-11 11:02:50 [client 192.168.85.1] GET /vendors/index-25108c0c.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
 [INFO]: 2022-09-11 11:02:50 [client 192.168.85.1] GET /vite.svg HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-11 11:42:54 [client 192.168.85.45] GET / HTTP/1.0 200 WebBench 1.5
+[INFO]: 2022-09-11 11:42:54 [client 192.168.85.45] GET / HTTP/1.0 200 WebBench 1.5
