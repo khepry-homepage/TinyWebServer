@@ -44,9 +44,9 @@ version--1.0
   - `top` 查看当前CPU占用率最高的进程
     ![image-20220911115314977.png](https://s2.loli.net/2022/09/11/Sc3zQlgs7WIi81o.png)
   - `ps -mp [pid] -o THREAD,tid,time` 查看进程内各线程的运行时间
-    ![image-20220911114949254.png](https://s2.loli.net/2022/09/11/Fgc6mC3pheNKJbf.png)
-  - `gdb attach [pid]`  `thread all apply bt`  查看进程内各线程函数调用栈
-    ![image-20220911115132581.png](https://s2.loli.net/2022/09/11/gF9r4AauvC2DmJt.png)
+    ![image-20220911120753171.png](https://s2.loli.net/2022/09/11/zxIvuA1LVnNy5oK.png)
+  - `gdb attach [pid]`  `thread apply all bt`  查看进程内各线程函数调用栈
+    ![image-20220911120931404.png](https://s2.loli.net/2022/09/11/HkE3sD1g4Apbhwr.png)
   通过以上步骤可以发现高并发场景下性能瓶颈主要存在于主线程。
 
 # 存在改进点
