@@ -1,6 +1,9 @@
 # TinyWebServer
 version--1.0
 
+# 同步IO模拟Proactor并发模型
+![同步IO模拟Proactor模式.png](https://s2.loli.net/2022/09/10/4P5EQwzRJqNdO2r.png)
+
 # 数据库"tiny_webserver"的"users"表设计说明
 
 |  字段名  | 长度 | 数据类型 | 是否为空 |          键类型           |               说明               |
@@ -12,9 +15,9 @@ version--1.0
 # 创建MYSQL表
 
 ```mysql
-1.  CREATE DATABASE tiny_webserver
-2.  USE DATABASE tiny_webserver
-3.  CREATE TABLE users (
+1. CREATE DATABASE tiny_webserver
+2. USE DATABASE tiny_webserver
+3. CREATE TABLE users (
         id int NOT NULL UNIQUE KEY AUTO_INCREMENT,
         username varchar(8) NOT NULL PRIMARY KEY,
         password varchar(8) NOT NULL
@@ -36,3 +39,13 @@ version--1.0
     - 服务器: Ubuntu22.04 内存8G 4核
   - 测试结果: 10000+QPS
 ![image-20220907230526200.png](https://s2.loli.net/2022/09/07/ezJbM4UtBpP9Isn.png)
+
+# 存在改进点
+
+使用单线程监听连接并处理IO操作的方式会因为IO操作而阻塞整个线程，使其无法响应新连接，在连接数非常多时存在明显的高并发性能瓶颈，初步设想将IO操作分离到几个单独的IO线程中，主线程只负责接受连接，通过Round Robin算法分发新连接给不同的IO线程。IO线程负责监听注册在其身上的IO事件并处理，而且共享负责处理业务逻辑的线程池，通过消息队列分发计算任务给线程池中的工作线程。
+![多Reactor多线程方案.png](https://s2.loli.net/2022/09/11/XqlKZ5Ljh6FSgvC.png)
+
+## To Do
+
+- [ ] 将IO操作的监听和处理分离到单独的IO线程
+- [ ] 通过Round Robin算法在IO线程上注册IO事件
