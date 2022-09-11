@@ -12,8 +12,8 @@ version--1.0
 # 创建MYSQL表
 
 ```mysql
-1. 	CREATE DATABASE tiny_webserver
-2.	USE DATABASE tiny_webserver
+1.  CREATE DATABASE tiny_webserver
+2.  USE DATABASE tiny_webserver
 3.  CREATE TABLE users (
         id int NOT NULL UNIQUE KEY AUTO_INCREMENT,
         username varchar(8) NOT NULL PRIMARY KEY,

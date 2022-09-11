@@ -126,7 +126,7 @@ void HttpConn::Process() {
   // 生成响应
   // printf("produce http response...\n");
   bool write_ret = ProcessWrite(read_ret);
-  LOG_DEBUG("%s", log_buf_);
+  LOG_INFO("%s", log_buf_);
   if (file_addr_) {
     bytes_to_send_ += file_stat_.st_size;
   }
