@@ -10,15 +10,14 @@ uint32_t DBConnPool::max_conns_;
 
 DBConnPool::DBConnPool() : conns_(max_conns_) {
   for (int i = 0; i < max_conns_; ++i) {
-    MYSQL conn;
-    mysql_init(&conn);
+    MYSQL *conn = mysql_init(nullptr);
     MYSQL *real_conn = mysql_real_connect(
-        &conn, DBConnPool::url_.c_str(), DBConnPool::user_.c_str(),
+        conn, DBConnPool::url_.c_str(), DBConnPool::user_.c_str(),
         DBConnPool::password_.c_str(), DBConnPool::db_name_.c_str(),
         DBConnPool::port_, nullptr, 0);
     if (real_conn == nullptr) {
       std::cout << "Error:" << mysql_error(real_conn) << std::endl;
-      mysql_close(&conn);
+      mysql_close(conn);
       mysql_library_end();
       exit(1);
     }

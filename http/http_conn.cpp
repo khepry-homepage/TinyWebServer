@@ -126,7 +126,7 @@ void HttpConn::Process() {
   // 生成响应
   // printf("produce http response...\n");
   bool write_ret = ProcessWrite(read_ret);
-  LOG_INFO("%s", log_buf_);
+  LOG_DEBUG("%s", log_buf_);
   if (file_addr_) {
     bytes_to_send_ += file_stat_.st_size;
   }
@@ -150,7 +150,11 @@ HttpConn::HttpConn() {
   HttpConn::Init(h_request_, this);
 }
 
-HttpConn::~HttpConn() { delete h_request_; }
+HttpConn::~HttpConn() {
+  LOG_DEBUG("释放连接 - client IP is %s and port is %d", client_ip_, port_);
+  CloseConn();
+  delete h_request_;
+}
 
 void HttpConn::Init(HttpRequest *h_request, HttpConn *h_conn) {
   h_request->process_state_ = HttpConn::CHECK_STATE_REQUESTLINE;
@@ -179,14 +183,15 @@ void HttpConn::Init() {
   iv_count_ = 0;
 }
 
-void HttpConn::Init(int cfd, const char *clientIP) {
+void HttpConn::Init(int cfd, const char *client_ip, const uint16_t &port) {
   HttpConn::Init(h_request_, this);
   socketfd_ = cfd;
   // 设置端口复用
   int reuse = 1;
   setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
   AddFD(HttpConn::epollfd_, cfd, true);
-  strcpy(client_ip_, clientIP);
+  strcpy(client_ip_, client_ip);
+  port_ = port;
 }
 
 HttpConn::HTTP_CODE HttpConn::ProcessRead() {

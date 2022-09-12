@@ -38,7 +38,7 @@ void Server::InitDBConn() {
 }
 
 void Server::InitTimer() {
-  TimerManager::Init(60);  // 初始化定时器保活时间，单位s
+  TimerManager::Init(5);  // 初始化定时器保活时间，单位s
   timer_manager_ = TimerManager::GetInstance();
 }
 
@@ -114,13 +114,17 @@ void Server::Run(int port) {
           char cilent_ip[16];
           inet_ntop(AF_INET, &c_addr.sin_addr.s_addr, cilent_ip,
                     sizeof(cilent_ip));
-          u_int16_t client_port = ntohs(c_addr.sin_port);
+          uint16_t client_port = ntohs(c_addr.sin_port);
 
           // 记录客户端连接信息
           SmartHttpConn http_conn(std::make_shared<HttpConn>());
-          http_conn->Init(cfd, cilent_ip);
-          timer_manager_->AddTimer(http_conn, c_addr);
-          http_conns_.insert({cfd, http_conn});
+          http_conn->Init(cfd, cilent_ip, client_port);
+          timer_manager_->AddTimer(http_conn);
+          if (http_conns_.find(cfd) != http_conns_.end()) {
+            http_conns_[cfd] = http_conn;
+          } else {
+            http_conns_.insert({cfd, http_conn});
+          }
           LOG_DEBUG("[client %s:%d]", cilent_ip, client_port);
         }
         // 产生中断或者读取完fd数据时不处理
@@ -135,17 +139,27 @@ void Server::Run(int port) {
         timer_manager_->DelTimer(sockfd);
         http_conns_.erase(sockfd);
       } else if (events[i].events & EPOLLIN) {
+        SmartHttpConn http_conn = http_conns_[sockfd].lock();
+        if (http_conn == nullptr) {
+          http_conns_.erase(sockfd);
+          continue;
+        }
         // 一次性读取socket数据成功
-        if (http_conns_[sockfd]->Read()) {
+        if (http_conn->Read()) {
           timer_manager_->AdjustTimer(sockfd);
-          thread_pool_->AppendTask(http_conns_[sockfd]);
+          thread_pool_->AppendTask(http_conn);
         } else {
           timer_manager_->DelTimer(sockfd);
           http_conns_.erase(sockfd);
         }
       } else if (events[i].events & EPOLLOUT) {
+        SmartHttpConn http_conn = http_conns_[sockfd].lock();
+        if (http_conn == nullptr) {
+          http_conns_.erase(sockfd);
+          continue;
+        }
         // 一次性写入socket数据失败，清理定时器
-        if (!http_conns_[sockfd]->Write()) {
+        if (!http_conn->Write()) {
           timer_manager_->DelTimer(sockfd);
           http_conns_.erase(sockfd);
         }

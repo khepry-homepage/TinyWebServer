@@ -1,25 +1,15 @@
 #include "../include/timer.h"
 
 namespace TinyWebServer {
-s_timer::s_timer(SmartHttpConn h_conn, sockaddr_in addr) : h_conn_(h_conn) {
-  c_addr_.sin_addr.s_addr = addr.sin_addr.s_addr;
-  c_addr_.sin_port = addr.sin_port;
+s_timer::s_timer(SmartHttpConn h_conn) : h_conn_(h_conn) {
   expire_time_ = time(nullptr) + TimerManager::max_age_;
 }
 s_timer::s_timer(s_timer &&st) {
   this->h_conn_ = st.h_conn_;
   this->expire_time_ = st.expire_time_;
-  this->c_addr_ = st.c_addr_;
   st.h_conn_ = st.h_conn_;
 }
-s_timer::~s_timer() {
-  char client_ip[16];
-  inet_ntop(AF_INET, &c_addr_.sin_addr.s_addr, client_ip, sizeof(client_ip));
-  LOG_DEBUG("释放连接 - client IP is %s and port is %d", client_ip,
-            ntohs(c_addr_.sin_port));
-  h_conn_->CloseConn();
-  h_conn_ = nullptr;
-}
+s_timer::~s_timer() { LOG_DEBUG("清理定时器, 关闭连接..."); }
 
 int TimerManager::epollfd_ = -1;
 time_t TimerManager::max_age_ = -1;
@@ -47,8 +37,8 @@ void TimerManager::HandleTick() {
   }
 }
 
-void TimerManager::AddTimer(SmartHttpConn h_conn, sockaddr_in &addr) {
-  std::unique_ptr<s_timer> st_ptr(new s_timer(h_conn, addr));
+void TimerManager::AddTimer(SmartHttpConn h_conn) {
+  std::unique_ptr<s_timer> st_ptr(new s_timer(h_conn));
   latch_.lock();
   timer_manager_.emplace_back(std::move(st_ptr));
   fd_timer_map_.emplace(h_conn->GetSocketfd(), --timer_manager_.end());
@@ -56,8 +46,8 @@ void TimerManager::AddTimer(SmartHttpConn h_conn, sockaddr_in &addr) {
 }
 
 void TimerManager::AdjustTimer(const int &socketfd) {
-  latch_.lock();
   std::list<std::unique_ptr<s_timer>>::iterator it;
+  latch_.lock();
   try {
     it = fd_timer_map_.at(socketfd);
   } catch (std::out_of_range) {

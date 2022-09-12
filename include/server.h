@@ -24,7 +24,7 @@ class Server {
   ThreadPool<SmartHttpConn> *thread_pool_;
   TimerManager *timer_manager_;
   Log *log_;
-  std::unordered_map<int, SmartHttpConn> http_conns_;
+  std::unordered_map<int, WeakHttpConn> http_conns_;
   bool server_run_;
 
  public:

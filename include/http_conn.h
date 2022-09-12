@@ -71,11 +71,12 @@ class HttpConn {
   static void Init(HttpRequest *h_request,
                    HttpConn *h_coon);  // 初始化http请求解析状态
   void Init();
-  void Init(int cfd, const char *client_ip);  // 初始化接受的客户端连接信息
-  void CloseConn();                           // 关闭连接
-  bool Read();                                // 读取socket
-  bool Write();                               // 写入socket
-  void Process();                             // 处理客户端请求
+  void Init(int cfd, const char *client_ip,
+            const uint16_t &port);  // 初始化接受的客户端连接信息
+  void CloseConn();                 // 关闭连接
+  bool Read();                      // 读取socket
+  bool Write();                     // 写入socket
+  void Process();                   // 处理客户端请求
   /*
       服务器处理HTTP请求的可能结果，报文解析的结果
       NO_REQUEST          :   请求不完整，需要继续读取客户数据
@@ -124,6 +125,7 @@ class HttpConn {
   int iv_count_;        // I/O向量结构体数组大小
 
   char client_ip_[64];          // 客户端IP信息
+  uint16_t port_;               // 客户端端口信息
   char log_buf_[LOG_BUF_SIZE];  // 日志缓冲区
   int log_buf_idx_;
 };
@@ -159,6 +161,7 @@ struct HttpRequest {
 };
 
 typedef std::shared_ptr<HttpConn> SmartHttpConn;
+typedef std::weak_ptr<HttpConn> WeakHttpConn;
 }  // namespace TinyWebServer
 
 #endif
