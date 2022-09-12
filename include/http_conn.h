@@ -73,7 +73,6 @@ class HttpConn {
   void Init();
   void Init(int cfd, const char *client_ip,
             const uint16_t &port);  // 初始化接受的客户端连接信息
-  void CloseConn();                 // 关闭连接
   bool Read();                      // 读取socket
   bool Write();                     // 写入socket
   void Process();                   // 处理客户端请求
@@ -103,6 +102,8 @@ class HttpConn {
   bool AddResponseContent(const char *content);  // 往写缓冲区添加错误提示信息
   void UnMap();                                  // 解除映射内存
   int GetSocketfd();  // 获取连接的文件描述符
+ private:
+  void CloseConn();  // 关闭连接
 
  private:
   int socketfd_;  // 该http连接的socket

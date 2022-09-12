@@ -22,14 +22,19 @@ void AddSig(int sig, void (*handler)(int)) {
 }
 
 Server::Server()
-    : thread_pool_(nullptr), timer_manager_(nullptr), server_run_(true) {}
-
-void Server::InitThreadPool() {
-  try {
-    thread_pool_ = new ThreadPool<SmartHttpConn>;
-  } catch (...) {
+    : thread_pool_(nullptr), timer_manager_(nullptr), server_run_(true) {
+  // 创建epoll实例
+  epollfd_ = epoll_create(4);
+  if (epollfd_ == -1) {
+    perror("epoll_create");
     exit(-1);
   }
+  HttpConn::epollfd_ = epollfd_;
+}
+
+void Server::InitThreadPool() {
+  ThreadPool<SmartHttpConn>::Init(1000);
+  thread_pool_ = ThreadPool<SmartHttpConn>::GetInstance();
 }
 
 void Server::InitDBConn() {
@@ -38,7 +43,7 @@ void Server::InitDBConn() {
 }
 
 void Server::InitTimer() {
-  TimerManager::Init(5);  // 初始化定时器保活时间，单位s
+  TimerManager::Init(epollfd_, 10, 5);  // 初始化定时器保活时间，单位s
   timer_manager_ = TimerManager::GetInstance();
 }
 
@@ -49,14 +54,6 @@ void Server::InitLog(bool async) {
 
 void Server::Run(int port) {
   AddSig(SIGPIPE, SIG_IGN);  // 忽略
-  AddSig(SIGALRM, TimerManager::Tick);  // 添加接受定时器的ALARM信号的回调函数
-
-  struct itimerval it;
-  it.it_value.tv_sec = 10;  // 第一次到期的时间，即1s后到期
-  it.it_value.tv_usec = 0;
-  it.it_interval.tv_sec = 10;  // 第一次到期后重置it_value为it_interval
-  it.it_interval.tv_usec = 0;
-  setitimer(ITIMER_REAL, &it, nullptr);  // 间隔1s发送一次ALARM信号
 
   int lfd = socket(AF_INET, SOCK_STREAM, 0);
   if (lfd == -1) {
@@ -81,21 +78,14 @@ void Server::Run(int port) {
     perror("listen");
     exit(-1);
   }
-  // 创建epoll实例
-  int epfd = epoll_create(4);
-  if (epfd == -1) {
-    perror("epoll_create");
-    exit(-1);
-  }
+
   // 添加服务端监听文件描述符
-  AddFD(epfd, lfd, false);
-  HttpConn::epollfd_ = epfd;
-  TimerManager::epollfd_ = epfd;
+  AddFD(epollfd_, lfd, false);
   int maxevents = 1024;
   struct epoll_event events[1024];
   memset(events, 0, sizeof(events));
   while (server_run_) {
-    int fd_cnt = epoll_wait(epfd, events, maxevents, -1);
+    int fd_cnt = epoll_wait(epollfd_, events, maxevents, -1);
     for (int i = 0; i < fd_cnt; ++i) {
       int sockfd = events[i].data.fd;
       // 如果服务器监听连接的I/O就绪
@@ -133,6 +123,8 @@ void Server::Run(int port) {
         }
         perror("accept");
         exit(-1);
+      } else if (sockfd == timer_manager_->GetTimerfd()) {
+        timer_manager_->HandleTick();
       }
       // 异常事件，清理定时器并关闭连接
       else if (events[i].events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {

@@ -13,20 +13,49 @@ s_timer::~s_timer() { LOG_DEBUG("清理定时器, 关闭连接..."); }
 
 int TimerManager::epollfd_ = -1;
 time_t TimerManager::max_age_ = -1;
+time_t TimerManager::tv_sec_ = -1;
 
-void TimerManager::Init(time_t max_age) { max_age_ = max_age; }
+TimerManager::TimerManager() {
+  timerfd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+  itimerspec new_value;
+  new_value.it_value.tv_sec = tv_sec_;
+  new_value.it_value.tv_nsec = 0;
+  new_value.it_interval.tv_sec = tv_sec_;
+  new_value.it_interval.tv_nsec = 0;
+  timerfd_settime(timerfd_, 0, &new_value, nullptr);
+  AddFD(epollfd_, timerfd_, true);
+}
+
+TimerManager::~TimerManager() {
+  RemoveFD(epollfd_, timerfd_);
+  timer_manager_.clear();
+  fd_timer_map_.clear();
+}
+
+void TimerManager::ReadTimerfd() {
+  while (read(timerfd_, &expirations_number_, sizeof(uint64_t)) != -1) {
+  }
+  if (errno != EAGAIN) {
+    perror("read timer");
+    exit(-1);
+  }
+}
 
 TimerManager *TimerManager::GetInstance() {
   static TimerManager timer_manager;
   return &timer_manager;
 }
 
-void TimerManager::Tick(int invalid_param) {
-  TimerManager *timer_manager = TimerManager::GetInstance();
-  timer_manager->HandleTick();
+void TimerManager::Init(int epollfd, time_t max_age, time_t tv_sec) {
+  epollfd_ = epollfd;
+  max_age_ = max_age;
+  tv_sec_ = tv_sec;
 }
 
+int TimerManager::GetTimerfd() { return timerfd_; }
+
 void TimerManager::HandleTick() {
+  ReadTimerfd();
   std::list<std::unique_ptr<s_timer>>::iterator it = timer_manager_.begin();
   time_t curr_time = time(nullptr);
   while (it != timer_manager_.end() && curr_time >= (*it)->expire_time_) {
@@ -35,6 +64,7 @@ void TimerManager::HandleTick() {
         st_ptr->h_conn_->GetSocketfd();  // 失活时间超过m_max_age，清理本次连接
     it = DelTimer(fd);
   }
+  ModFD(epollfd_, timerfd_, EPOLLIN);
 }
 
 void TimerManager::AddTimer(SmartHttpConn h_conn) {
@@ -76,10 +106,5 @@ std::list<std::unique_ptr<s_timer>>::iterator TimerManager::DelTimer(
   fd_timer_map_.erase(socketfd);
   latch_.unlock();
   return it;
-}
-
-TimerManager::~TimerManager() {
-  timer_manager_.clear();
-  fd_timer_map_.clear();
 }
 }  // namespace TinyWebServer

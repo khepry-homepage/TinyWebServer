@@ -26,6 +26,7 @@ class Server {
   Log *log_;
   std::unordered_map<int, WeakHttpConn> http_conns_;
   bool server_run_;
+  int epollfd_;
 
  public:
   void InitThreadPool();     // 初始化线程池

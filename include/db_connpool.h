@@ -23,7 +23,7 @@ class DBConnPool {
       SmartDBConnPoolInstance db_connpool_instance);  // 释放连接实例
  private:
   DBConnPool();
-  ~DBConnPool();
+  ~DBConnPool() = default;
 
  private:
   static std::string url_;                   // 数据库访问地址

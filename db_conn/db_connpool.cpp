@@ -25,8 +25,6 @@ DBConnPool::DBConnPool() : conns_(max_conns_) {
   }
 }
 
-DBConnPool::~DBConnPool() {}
-
 void DBConnPool::Init(std::string url, std::string user, std::string password,
                       std::string db_name, int port, u_int32_t max_conns) {
   DBConnPool::url_ = url;
