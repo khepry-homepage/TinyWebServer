@@ -31,7 +31,7 @@ version--1.0
 `./server 8080`
 
 # 演示效果
-<video src="./demo/演示视频.mp4"></video>
+![demo](https://s2.loli.net/2022/09/19/7BbTmHsOLeyrKjF.gif)
 
 # 压力测试
 `cd ./webbench-1.5 && webbench -c [concurrency] -t [duration] [host:port]`
