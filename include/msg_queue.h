@@ -17,8 +17,8 @@ class MsgQueue : NonCopyable {
   MsgQueue<T>(int size = 0, uint32_t cnt = 0)
       : max_queue_size_(size), sem_(cnt) {}
   ~MsgQueue<T>();
-  bool Push(T&& msg);
-  bool Push(const T& msg);
+  template <typename _T>
+  bool Push(_T&& msg);
   T Pop();
   size_t Size() const;
 };
@@ -30,26 +30,14 @@ MsgQueue<T>::~MsgQueue() {
 }
 
 template <typename T>
-bool MsgQueue<T>::Push(T&& msg) {
+template <typename _T>
+bool MsgQueue<T>::Push(_T&& msg) {
   latch_.lock();
   if (msg_queue_.size() > max_queue_size_) {
     latch_.unlock();
     return false;
   }
-  msg_queue_.emplace_back(std::forward<T&&>(msg));
-  latch_.unlock();
-  sem_.post();
-  return true;
-}
-
-template <typename T>
-bool MsgQueue<T>::Push(const T& msg) {
-  latch_.lock();
-  if (msg_queue_.size() > max_queue_size_) {
-    latch_.unlock();
-    return false;
-  }
-  msg_queue_.emplace_back(msg);
+  msg_queue_.emplace_back(std::forward<_T>(msg));
   latch_.unlock();
   sem_.post();
   return true;
