@@ -30,6 +30,9 @@ version--1.0
 # 运行
 `./server 8080`
 
+# 演示效果
+<video src="./demo/演示视频.mp4"></video>
+
 # 压力测试
 `cd ./webbench-1.5 && webbench -c [concurrency] -t [duration] [host:port]`
 
