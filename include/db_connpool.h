@@ -1,5 +1,4 @@
-#ifndef DB_CONNPOOL_H
-#define DB_CONNPOOL_H
+#pragma once
 
 #include <mysql/mysql.h>
 
@@ -25,7 +24,6 @@ class DBConnPool {
   DBConnPool();
   ~DBConnPool() = default;
 
- private:
   static std::string url_;                   // 数据库访问地址
   static std::string user_;                  // 数据库用户名
   static std::string password_;              // 数据库用户密码
@@ -73,5 +71,3 @@ class ConnInstanceRAII {
   DBConnPool *db_conn_pool_;
 };
 }  // namespace TinyWebServer
-
-#endif

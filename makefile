@@ -4,6 +4,7 @@
 ROOT    		= $(PWD)
 TEST    		= $(ROOT)/test
 SERVER			= $(ROOT)/tiny_server
+REACTOR			=	$(ROOT)/reactor
 HTTP		 		= $(ROOT)/http
 DB_CONN			= $(ROOT)/db_conn
 LOG					= $(ROOT)/log
@@ -15,7 +16,7 @@ CFLAGS  		= -g -pthread
 LIB_PATH  	= -L /usr/lib/x86_64-linux-gnu/
 LIB_NAMES  	= -lmysqlclient
 LIB_TEST		= -lgtest -lgtest_main
-OBJ   			=	main.o server.o timer.o http_conn.o db_connpool.o log.o
+OBJ   			=	main.o server.o reactor.o timer.o http_conn.o db_connpool.o log.o
 TEST_OBJ		= test.o http_conn.o
 TARGET  		=	server
 RM      		=	rm -rf
@@ -38,6 +39,8 @@ timer.o:$(TIMER)/timer.cpp
 log.o:$(LOG)/log.cpp
 	$(CC) -o $@ -c $< $(CFLAGS)
 server.o:$(SERVER)/server.cpp
+	$(CC) -o $@ -c $< $(CFLAGS)
+reactor.o:$(REACTOR)/reactor.cpp
 	$(CC) -o $@ -c $< $(CFLAGS)
 test.o:$(TEST)/test.cpp
 	$(CC) $(LIB_TEST) -o $@ -c $< $(CFLAGS)

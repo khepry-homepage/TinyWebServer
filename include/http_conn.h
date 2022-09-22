@@ -33,7 +33,6 @@ class HttpConn {
   const static int READ_BUFFER_SIZE = 2048;   // 读缓冲区大小
   const static int WRITE_BUFFER_SIZE = 2048;  // 写缓冲区大小
   const static int FILENAME_LEN = 128;        // 访问资源的文件名大小
-  static int epollfd_;                        // 全局唯一的epoll实例
   static std::atomic<int> user_count_;        // 统计用户的数量
   static DBConnPool *coon_pool_;              // 数据库连接池
 
@@ -65,7 +64,7 @@ class HttpConn {
     INTERNAL_ERROR,
     CLOSED_CONNECTION
   };
-  HttpConn();
+  HttpConn(const int &epollfd);
   ~HttpConn();
 
   static void Init(HttpRequest *h_request,
@@ -106,7 +105,8 @@ class HttpConn {
   void CloseConn();  // 关闭连接
 
  private:
-  int socketfd_;  // 该http连接的socket
+  const int epollfd_;  // epoll句柄
+  int socketfd_;       // 该http连接的socket
   HttpRequest *h_request_;
   char read_buf_[READ_BUFFER_SIZE];
   int read_idx_;   // 当前读取的字节位置

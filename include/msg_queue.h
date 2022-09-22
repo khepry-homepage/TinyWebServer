@@ -1,5 +1,4 @@
-#ifndef MSG_QUEUE_H
-#define MSG_QUEUE_H
+#pragma once
 
 #include <list>
 
@@ -8,20 +7,24 @@
 namespace TinyWebServer {
 template <typename T>
 class MsgQueue : NonCopyable {
- private:
-  const int max_queue_size_;
-  std::list<T> msg_queue_;  // 消息队列
-  mutable locker latch_;    // 辅助消息队列的互斥锁
-  sem sem_;                 // 用于判断消息队列资源数的信号量
  public:
-  MsgQueue<T>(int size = 0, uint32_t cnt = 0)
-      : max_queue_size_(size), sem_(cnt) {}
+  MsgQueue<T>(const int& max_queue_size = 0, const uint32_t& sem_cnt = 0);
   ~MsgQueue<T>();
   template <typename _T>
   bool Push(_T&& msg);
   T Pop();
   size_t Size() const;
+
+ private:
+  const int max_queue_size_;
+  std::list<T> msg_queue_;  // 消息队列
+  mutable locker latch_;    // 辅助消息队列的互斥锁
+  sem sem_;                 // 用于判断消息队列资源数的信号量
 };
+
+template <typename T>
+MsgQueue<T>::MsgQueue(const int& max_queue_size, const uint32_t& sem_cnt)
+    : max_queue_size_(max_queue_size), sem_(sem_cnt) {}
 
 template <typename T>
 MsgQueue<T>::~MsgQueue() {
@@ -61,4 +64,3 @@ size_t MsgQueue<T>::Size() const {
   return size;
 }
 }  // namespace TinyWebServer
-#endif

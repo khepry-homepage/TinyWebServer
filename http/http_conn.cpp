@@ -42,7 +42,6 @@ std::unordered_map<std::string, std::string> mime_map = {
 const char *default_req_uri = "index.html";  // default request uriname
 std::string doc_root =
     "/home/khepry/coding/web_server/static/";  // resource root dirname
-int HttpConn::epollfd_ = -1;                   // 全局唯一的epoll实例
 std::atomic<int> HttpConn::user_count_ = -1;   // 统计用户的数量
 DBConnPool *HttpConn::coon_pool_ = nullptr;    // 数据库连接池
 
@@ -110,7 +109,7 @@ void HttpConn::CloseConn() {
   if (socketfd_ != -1) {
     RemoveFD(epollfd_, socketfd_);
     socketfd_ = -1;
-    --HttpConn::user_count_;
+    --user_count_;
   }
 }
 
@@ -137,10 +136,10 @@ void HttpConn::Process() {
     CloseConn();
   }
   // 注册写事件
-  ModFD(HttpConn::epollfd_, socketfd_, EPOLLOUT);
+  ModFD(epollfd_, socketfd_, EPOLLOUT);
 }
 
-HttpConn::HttpConn() {
+HttpConn::HttpConn(const int &epollfd) : epollfd_(epollfd) {
   h_request_ = new HttpRequest();
   if (h_request_ == nullptr) {
     LOG_ERR("%s %s", log_buf_,
@@ -151,7 +150,8 @@ HttpConn::HttpConn() {
 }
 
 HttpConn::~HttpConn() {
-  LOG_DEBUG("释放连接 - client IP is %s and port is %d", client_ip_, port_);
+  LOG_DEBUG("释放连接 - client IP is %s and port is %d [thread %lu]",
+            client_ip_, port_, pthread_self());
   CloseConn();
   delete h_request_;
 }
@@ -189,7 +189,7 @@ void HttpConn::Init(int cfd, const char *client_ip, const uint16_t &port) {
   // 设置端口复用
   int reuse = 1;
   setsockopt(cfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-  AddFD(HttpConn::epollfd_, cfd, true);
+  AddFD(epollfd_, cfd, true);
   strcpy(client_ip_, client_ip);
   port_ = port;
 }

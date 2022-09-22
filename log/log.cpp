@@ -8,12 +8,7 @@ LogMsg::LogMsg() {
   log_filename_ = new char[MAX_FILENAME];
   log_buf_ = new char[LOG_BUF_SIZE];
 }
-LogMsg::LogMsg(LogMsg &&log_msg) {
-  log_filename_ = log_msg.log_filename_;
-  log_buf_ = log_msg.log_buf_;
-  log_msg.log_filename_ = nullptr;
-  log_msg.log_buf_ = nullptr;
-}
+
 LogMsg::~LogMsg() {
   delete[] log_filename_;
   delete[] log_buf_;
@@ -62,11 +57,16 @@ Log::Log() : log_run_(true), fp_(nullptr) {
     if (pthread_create(&thread_, nullptr, Log::Worker, this) != 0) {
       throw std::exception();
     }
-    pthread_detach(thread_);
   }
 }
 
-Log::~Log() { log_run_ = false; }
+Log::~Log() {
+  log_run_ = false;
+  log_queue_.Push(nullptr);
+  if (ASYNC_WRITE) {
+    pthread_join(thread_, nullptr);
+  }
+}
 
 void Log::Init(const char *log_filename, Log::LOG_LEVEL log_level,
                int max_log_line, int max_queue_size, bool async) {
@@ -144,38 +144,38 @@ bool Log::WriteLog(Log::LOG_LEVEL log_level, const char *format, ...) {
   write_idx_ += len;
   va_end(args);
   snprintf(log_buf_ + write_idx_, 3, "\r\n");  // 添加换行符
-  LogMsg msg;
+  SharedLogMsg log_msg = std::make_shared<LogMsg>();
   if (log_level >= Log::WARNING) {  // 访问日志
-    snprintf(msg.log_filename_, MAX_FILENAME, "%s/access.%s.%d-%02d-%02d.log",
-             DEFAULT_ACCESSLOG_ROOT, Log::LOG_FILENAME, t.tm_year + 1900,
-             t.tm_mon + 1, t.tm_mday);
+    snprintf(log_msg->log_filename_, MAX_FILENAME,
+             "%s/access.%s.%d-%02d-%02d.log", DEFAULT_ACCESSLOG_ROOT,
+             Log::LOG_FILENAME, t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
   } else {  // 错误日志
-    snprintf(msg.log_filename_, MAX_FILENAME, "%s/error.%s.%d-%02d-%02d.log",
-             DEFAULT_ERRORLOG_ROOT, Log::LOG_FILENAME, t.tm_year + 1900,
-             t.tm_mon + 1, t.tm_mday);
+    snprintf(log_msg->log_filename_, MAX_FILENAME,
+             "%s/error.%s.%d-%02d-%02d.log", DEFAULT_ERRORLOG_ROOT,
+             Log::LOG_FILENAME, t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
   }
   int suffix = 1;
   int line = 0;
-  while ((line = GetFileLine(msg.log_filename_)) >= MAX_LOG_LINE) {
+  while ((line = GetFileLine(log_msg->log_filename_)) >= MAX_LOG_LINE) {
     suffix += line;
     if (log_level >= Log::WARNING) {  // 访问日志
-      snprintf(msg.log_filename_, MAX_FILENAME,
+      snprintf(log_msg->log_filename_, MAX_FILENAME,
                "%s/access.%s.%d-%02d-%02d_line_%d.log", DEFAULT_ACCESSLOG_ROOT,
                Log::LOG_FILENAME, t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
                suffix);
     } else {  // 错误日志
-      snprintf(msg.log_filename_, MAX_FILENAME, "%s/error.%s.%d-%02d-%02d.log",
-               DEFAULT_ERRORLOG_ROOT, Log::LOG_FILENAME, t.tm_year + 1900,
-               t.tm_mon + 1, t.tm_mday);
+      snprintf(log_msg->log_filename_, MAX_FILENAME,
+               "%s/error.%s.%d-%02d-%02d.log", DEFAULT_ERRORLOG_ROOT,
+               Log::LOG_FILENAME, t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
     }
   }
   if (log_level <
       Log::CONSOLE_LOG_LEVEL) {  // 低于控制终端日志输出级别的日志刷盘
     if (Log::ASYNC_WRITE) {  // 异步写
-      strcpy(msg.log_buf_, log_buf_);
-      log_queue_.Push(std::move(msg));
+      strcpy(log_msg->log_buf_, log_buf_);
+      log_queue_.Push(log_msg);
     } else {  // 同步写
-      fp_ = fopen(msg.log_filename_, "a+");
+      fp_ = fopen(log_msg->log_filename_, "a+");
       fputs(log_buf_, fp_);
       fclose(fp_);
     }
@@ -191,10 +191,12 @@ void Log::Flush() { fflush(fp_); }
 
 void Log::HandleAsyncWrite() {
   while (log_run_) {
-    LogMsg msg = log_queue_.Pop();
-    fp_ = fopen(msg.log_filename_, "a+");
-    fputs(msg.log_buf_, fp_);
-    fclose(fp_);
+    SharedLogMsg log_msg = log_queue_.Pop();
+    if (log_msg != nullptr) {
+      fp_ = fopen(log_msg->log_filename_, "a+");
+      fputs(log_msg->log_buf_, fp_);
+      fclose(fp_);
+    }
   }
 }
 }  // namespace TinyWebServer

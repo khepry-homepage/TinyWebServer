@@ -7,17 +7,17 @@ int main(int argc, char **argv) {
   }
   int port = atoi(argv[1]);
 
-  TinyWebServer::Server server;
+  TinyWebServer::SharedServer server = TinyWebServer::Server::GetInstance();
 
-  server.InitThreadPool();
+  server->InitThreadPool();
 
-  server.InitDBConn();
+  server->InitDBConn();
 
-  server.InitTimer();
+  server->InitTimer();
 
-  server.InitLog(true);
+  server->InitLog(true);
 
-  server.Run(port);
+  server->Run(port);
 
   return 0;
 }

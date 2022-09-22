@@ -1,5 +1,4 @@
-#ifndef LOCKER_H
-#define LOCKER_H
+#pragma once
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -18,9 +17,7 @@ class locker : NonCopyable {
   }
   ~locker() { pthread_mutex_destroy(&latch_); }
   bool lock() { return pthread_mutex_lock(&latch_) == 0; }
-  bool trylock() { return pthread_mutex_trylock(&latch_) == 0; }
   bool unlock() { return pthread_mutex_unlock(&latch_) == 0; }
-  pthread_mutex_t *get() { return &latch_; }
 
  private:
   pthread_mutex_t latch_;
@@ -63,4 +60,3 @@ class sem {
   sem_t sem_;
 };
 }  // namespace TinyWebServer
-#endif

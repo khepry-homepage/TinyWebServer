@@ -10,6 +10,7 @@
 #include <cstring>
 #include <ctime>
 #include <fstream>
+#include <memory>
 
 #include "msg_queue.h"
 namespace TinyWebServer {
@@ -59,12 +60,12 @@ namespace TinyWebServer {
 #define LOG_BUF_SIZE 256
 
 struct LogMsg {
+  LogMsg();
+  ~LogMsg();
   char *log_filename_;
   char *log_buf_;
-  LogMsg();
-  LogMsg(LogMsg &&log_msg);
-  ~LogMsg();
 };
+typedef std::shared_ptr<LogMsg> SharedLogMsg;
 
 class Log {
  public:
@@ -78,7 +79,7 @@ class Log {
     INFO,
     DEBUG
   };  // 日志级别
- public:
+
   Log();
   ~Log();
 
@@ -96,15 +97,15 @@ class Log {
   static char LOG_FILENAME[MAX_LOGNAME];  // 日志文件名
   static Log::LOG_LEVEL
       CONSOLE_LOG_LEVEL;  // 高于此优先级的日志信息输出到控制台
-  static int MAX_LOG_LINE;      // 单一日志文件最大行数
-  static int MAX_QUEUE_SIZE;    // 日志写任务阻塞队列的大小
-  static bool ASYNC_WRITE;      // 异步写标志
-  char log_buf_[LOG_BUF_SIZE];  // 日志写缓冲区
-  int write_idx_;               // 写缓冲区下标
-  locker latch_;                // 日志写动作互斥锁
-  MsgQueue<LogMsg> log_queue_;  // 日志写任务阻塞队列
-  pthread_t thread_;            // 异步模式的线程id
-  FILE *fp_;                    // 日志文件指针
+  static int MAX_LOG_LINE;            // 单一日志文件最大行数
+  static int MAX_QUEUE_SIZE;          // 日志写任务阻塞队列的大小
+  static bool ASYNC_WRITE;            // 异步写标志
+  char log_buf_[LOG_BUF_SIZE];        // 日志写缓冲区
+  int write_idx_;                     // 写缓冲区下标
+  locker latch_;                      // 日志写动作互斥锁
+  MsgQueue<SharedLogMsg> log_queue_;  // 日志写任务阻塞队列
+  pthread_t thread_;                  // 异步模式的线程id
+  FILE *fp_;                          // 日志文件指针
   bool log_run_;
 };
 }  // namespace TinyWebServer
