@@ -29,19 +29,28 @@ class Server : NonCopyable {
   ~Server();
   static void CloseServer(int invalid_param);  // 关闭服务器
   static SharedServer GetInstance();
-  void InitThreadPool();     // 初始化线程池
-  void InitDBConn();         // 初始化数据库连接池
-  void InitTimer();          // 初始化定时器管理器
-  void InitLog(bool async);  // 初始化同步/异步日志系统
+  void Init();
+
+  // 初始化线程池
+  void InitThreadPool();
+
+  // 初始化数据库连接池
+  void InitDBConn();
+
+  // 初始化定时器管理器
+  void InitTimer();
+
+  // 初始化同步/异步日志系统
+  void InitLog(bool async);
   void Run(int port);
   void Close();
-
+  static std::atomic<int> conn_count_;
   static bool server_run_;
 
  private:
   Server(const int &reactor_count = 2);
 
-  std::unique_ptr<pthread_t[]> threads_;
+  std::unique_ptr<pthread_t[]> reactor_threads_;
   UniqueReactorArr reactors_;
   Log *log_;
   const int reactor_count_;  // 从reactor数目

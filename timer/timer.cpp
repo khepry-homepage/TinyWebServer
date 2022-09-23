@@ -31,7 +31,7 @@ void TimerManager::Init(time_t max_age, time_t tv_sec) {
   max_age_ = max_age;
   tv_sec_ = tv_sec;
 }
-
+int TimerManager::GetTimerfd() const { return timerfd_; }
 bool TimerManager::IsTimerfd(const int &fd) const { return fd == timerfd_; }
 
 void TimerManager::HandleTick() {

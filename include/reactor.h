@@ -43,7 +43,7 @@ class Reactor : NonCopyable {
 
   bool IsEnrollEvent(const int &fd);
   bool IsStopEvent(const int &fd);
-  bool IsChannelEmpty();
+  int ChannelQueueSize();
   void RegisterEnrollEventCallBack(
       const std::function<void(const int &, const epoll_event &)> &func);
   void RegisterCommonEventCallBack(

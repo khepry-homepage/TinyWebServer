@@ -25,14 +25,15 @@ Server::Server(const int &reactor_count)
       start_index_(0),
       buf_(1) {
   stopfd_ = eventfd(0, EFD_NONBLOCK);
-  threads_ = std::make_unique<pthread_t[]>(reactor_count);
+  Init();
+  reactor_threads_ = std::make_unique<pthread_t[]>(reactor_count);
   for (auto &ptr : reactors_) {
     ptr = std::make_unique<SubReactor>();
   }
   // 创建reactor_count_个线程
   for (int i = 0; i < reactor_count; ++i) {
     LOG_DEBUG("create the %dth reactor", i);
-    if (pthread_create(&threads_[i], nullptr, Reactor::Worker,
+    if (pthread_create(&reactor_threads_[i], nullptr, Reactor::Worker,
                        reactors_[i].get()) != 0) {
       throw std::exception();
     }
@@ -45,9 +46,16 @@ Server::~Server() {
     reactor_ptr->NotifyDestroy();
   }
   for (int i = 0; i < reactor_count_; ++i) {
-    pthread_join(threads_[i], nullptr);
+    pthread_join(reactor_threads_[i], nullptr);
   }
   reactors_.clear();
+}
+
+void Server::Init() {
+  InitThreadPool();
+  InitDBConn();
+  InitTimer();
+  InitLog(true);
 }
 
 void Server::InitThreadPool() { ThreadPool<SmartHttpConn>::Init(1000); }
@@ -65,6 +73,7 @@ void Server::InitLog(bool async) {
   Log::Init("server", Log::DEBUG, 10, 1000, true);
   log_ = Log::GetInstance();
 }
+std::atomic<int> Server::conn_count_ = 0;
 
 void Server::Run(int port) {
   AddSig(SIGPIPE, SIG_IGN);             // 忽略
@@ -112,6 +121,9 @@ void Server::Run(int port) {
           sockaddr_in c_addr;
           socklen_t len = sizeof(c_addr);
           while ((cfd = accept(lfd, (struct sockaddr *)&c_addr, &len)) != -1) {
+            LOG_DEBUG("real connect count: %d, response connect count: %d",
+                      HttpConn::user_count_.load(), conn_count_.load());
+            ++conn_count_;
             if (HttpConn::user_count_ >= MAX_FD) {
               // 目前连接数已满，无法接受更多连接
               LOG_DEBUG("connect fail and can not accept overload connection");

@@ -9,14 +9,6 @@ int main(int argc, char **argv) {
 
   TinyWebServer::SharedServer server = TinyWebServer::Server::GetInstance();
 
-  server->InitThreadPool();
-
-  server->InitDBConn();
-
-  server->InitTimer();
-
-  server->InitLog(true);
-
   server->Run(port);
 
   return 0;

@@ -61,7 +61,7 @@ bool Reactor::IsEnrollEvent(const int &fd) { return fd == enrollfd_; }
 
 bool Reactor::IsStopEvent(const int &fd) { return fd == stopfd_; }
 
-bool Reactor::IsChannelEmpty() { return channel_queue_.Size() == 0; }
+int Reactor::ChannelQueueSize() { return channel_queue_.Size(); }
 
 void Reactor::RegisterEnrollEventCallBack(
     const std::function<void(const int &, const epoll_event &)> &func) {
@@ -94,8 +94,9 @@ void SubReactor::HandleEnrollEvent(const int &fd,
     LOG_ERR("fail in SubReactor::HandleEnrollEvent");
     exit(-1);
   }
+  int size = ChannelQueueSize();
   // 产生中断或者读取完fd数据时不处理
-  while (!IsChannelEmpty()) {
+  while (size--) {
     SharedChannel shared_channel = channel_queue_.Pop();
     // 记录客户端连接信息
     SmartHttpConn http_conn(std::make_shared<HttpConn>(epollfd_));

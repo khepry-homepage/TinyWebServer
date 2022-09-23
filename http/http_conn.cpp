@@ -42,7 +42,7 @@ std::unordered_map<std::string, std::string> mime_map = {
 const char *default_req_uri = "index.html";  // default request uriname
 std::string doc_root =
     "/home/khepry/coding/web_server/static/";  // resource root dirname
-std::atomic<int> HttpConn::user_count_ = -1;   // 统计用户的数量
+std::atomic<int> HttpConn::user_count_ = 0;    // 统计用户的数量
 DBConnPool *HttpConn::coon_pool_ = nullptr;    // 数据库连接池
 
 /** @fn : int GetGmtTime(char *szGmtTime)
@@ -109,7 +109,7 @@ void HttpConn::CloseConn() {
   if (socketfd_ != -1) {
     RemoveFD(epollfd_, socketfd_);
     socketfd_ = -1;
-    --user_count_;
+    // --user_count_;
   }
 }
 
@@ -147,6 +147,7 @@ HttpConn::HttpConn(const int &epollfd) : epollfd_(epollfd) {
     throw std::exception();
   }
   HttpConn::Init(h_request_, this);
+  ++user_count_;
 }
 
 HttpConn::~HttpConn() {
@@ -569,7 +570,7 @@ bool HttpConn::Write() {
       }
       // 释放连接
       else {
-        ModFD(epollfd_, socketfd_, EPOLLIN);
+        LOG_DEBUG("Release Connection");
         return false;
       }
     }

@@ -31,6 +31,7 @@ class TimerManager : NonCopyable {
   TimerManager(const int &epollfd);
   ~TimerManager();
   static void Init(time_t max_age, time_t tv_sec);
+  int GetTimerfd() const;
   bool IsTimerfd(const int &fd) const;    // 判断是否为定时器fd
   void HandleTick();                      // 超时回调函数
   void AddTimer(SmartHttpConn h_conn);    // 给连接添加定时器
