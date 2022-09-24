@@ -86,8 +86,8 @@ bool ThreadPool<T>::AppendTask(T task) {
 template <typename T>
 ThreadPool<T>::ThreadPool()
     : threads_(nullptr), requests_(max_requests_), thread_run_(true) {
-  // 初始化线程数 = 2 * 核心数 + 1
-  thread_number_ = 2 * get_nprocs() + 1;
+  // 初始化线程数 = 核心数
+  thread_number_ = get_nprocs();
   // throw std::bad_alloc when fail
   threads_ = std::make_unique<pthread_t[]>(thread_number_);
   // 创建thread_number_个线程

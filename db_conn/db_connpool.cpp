@@ -40,10 +40,10 @@ DBConnPool *DBConnPool::GetInstance() {
   return &conns_;
 }
 
-SmartDBConnPoolInstance DBConnPool::GetConnection() { return conns_.Pop(); }
+SharedDBConnPoolInstance DBConnPool::GetConnection() { return conns_.Pop(); }
 
 bool DBConnPool::ReleaseConnection(
-    SmartDBConnPoolInstance db_connpool_instance) {
+    SharedDBConnPoolInstance db_connpool_instance) {
   if (db_connpool_instance.get()->GetConn() == nullptr) {
     return false;
   }

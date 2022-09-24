@@ -12,7 +12,7 @@ bool WriteEventfd(const int &fd, uint64_t &buf, const char *format,
   return true;
 }
 
-Reactor::Reactor() { Init(); }
+Reactor::Reactor() : channel_queue_(1000) { Init(); }
 
 void Reactor::Init() {
   epollfd_ = epoll_create(4);
@@ -80,7 +80,7 @@ SubReactor::SubReactor() : timer_manager_(nullptr) {
   RegisterCommonEventCallBack(std::bind(&SubReactor::HandleCommonEvent, this,
                                         std::placeholders::_1,
                                         std::placeholders::_2));
-  thread_pool_ = ThreadPool<SmartHttpConn>::GetInstance();
+  thread_pool_ = ThreadPool<SharedHttpConn>::GetInstance();
   timer_manager_ = std::make_unique<TimerManager>(epollfd_);
   log_ = Log::GetInstance();
 }
@@ -99,7 +99,7 @@ void SubReactor::HandleEnrollEvent(const int &fd,
   while (size--) {
     SharedChannel shared_channel = channel_queue_.Pop();
     // 记录客户端连接信息
-    SmartHttpConn http_conn(std::make_shared<HttpConn>(epollfd_));
+    SharedHttpConn http_conn(std::make_shared<HttpConn>(epollfd_));
     SocketInfo *socket_info =
         reinterpret_cast<SocketInfo *>(shared_channel->data_.get());
     int cfd = shared_channel->fd_;
@@ -123,7 +123,7 @@ void SubReactor::HandleCommonEvent(const int &fd,
     timer_manager_->DelTimer(fd);
     http_conns_.erase(fd);
   } else if (epoll_event.events & EPOLLIN) {
-    SmartHttpConn http_conn = http_conns_[fd].lock();
+    SharedHttpConn http_conn = http_conns_[fd].lock();
     if (http_conn == nullptr) {
       http_conns_.erase(fd);
       return;
@@ -137,7 +137,7 @@ void SubReactor::HandleCommonEvent(const int &fd,
       http_conns_.erase(fd);
     }
   } else if (epoll_event.events & EPOLLOUT) {
-    SmartHttpConn http_conn = http_conns_[fd].lock();
+    SharedHttpConn http_conn = http_conns_[fd].lock();
     if (http_conn == nullptr) {
       http_conns_.erase(fd);
       return;

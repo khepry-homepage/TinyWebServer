@@ -14,10 +14,10 @@
 #include "log.h"
 namespace TinyWebServer {
 struct Timer {
-  Timer(SmartHttpConn h_conn);
-  ~Timer();
+  Timer(const SharedHttpConn &h_conn);
+  ~Timer() = default;
 
-  SmartHttpConn h_conn_;
+  SharedHttpConn h_conn_;
   time_t expire_time_;
 };
 typedef std::shared_ptr<Timer> SharedTimer;
@@ -32,9 +32,9 @@ class TimerManager : NonCopyable {
   ~TimerManager();
   static void Init(time_t max_age, time_t tv_sec);
   int GetTimerfd() const;
-  bool IsTimerfd(const int &fd) const;    // 判断是否为定时器fd
-  void HandleTick();                      // 超时回调函数
-  void AddTimer(SmartHttpConn h_conn);    // 给连接添加定时器
+  bool IsTimerfd(const int &fd) const;          // 判断是否为定时器fd
+  void HandleTick();                            // 超时回调函数
+  void AddTimer(const SharedHttpConn &h_conn);  // 给连接添加定时器
   void AdjustTimer(const int &socketfd);  // 调整定时器位置到链表末尾
   std::list<SharedTimer>::iterator DelTimer(
       const int &socketfd);  // 删除连接绑定的定时器，并释放连接

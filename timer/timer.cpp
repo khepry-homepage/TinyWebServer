@@ -1,11 +1,9 @@
 #include "../include/timer.h"
 
 namespace TinyWebServer {
-Timer::Timer(SmartHttpConn h_conn) : h_conn_(h_conn) {
+Timer::Timer(const SharedHttpConn &h_conn) : h_conn_(h_conn) {
   expire_time_ = time(nullptr) + TimerManager::max_age_;
 }
-
-Timer::~Timer() { LOG_DEBUG("清理定时器, 关闭连接..."); }
 
 time_t TimerManager::max_age_ = -1;
 time_t TimerManager::tv_sec_ = -1;
@@ -47,7 +45,7 @@ void TimerManager::HandleTick() {
   ModFD(epollfd_, timerfd_, EPOLLIN);
 }
 
-void TimerManager::AddTimer(SmartHttpConn h_conn) {
+void TimerManager::AddTimer(const SharedHttpConn &h_conn) {
   SharedTimer st_ptr = std::make_shared<Timer>(h_conn);
   latch_.lock();
   timer_manager_.emplace_back(st_ptr);

@@ -36,7 +36,7 @@ template <typename T>
 template <typename _T>
 bool MsgQueue<T>::Push(_T&& msg) {
   latch_.lock();
-  if (msg_queue_.size() > max_queue_size_) {
+  if (msg_queue_.size() >= max_queue_size_) {
     latch_.unlock();
     return false;
   }

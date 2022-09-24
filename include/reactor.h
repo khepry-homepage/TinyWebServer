@@ -82,7 +82,7 @@ class SubReactor : public Reactor {
  private:
   std::unordered_map<int, WeakHttpConn> http_conns_;
   std::unique_ptr<TimerManager> timer_manager_;
-  ThreadPool<SmartHttpConn> *thread_pool_;
+  ThreadPool<SharedHttpConn> *thread_pool_;
   Log *log_;
 };
 }  // namespace TinyWebServer

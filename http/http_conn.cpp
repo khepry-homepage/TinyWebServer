@@ -105,40 +105,6 @@ void ModFD(int epollfd, int fd, int events) {
   epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &ev);
 }
 
-void HttpConn::CloseConn() {
-  if (socketfd_ != -1) {
-    RemoveFD(epollfd_, socketfd_);
-    socketfd_ = -1;
-    // --user_count_;
-  }
-}
-
-void HttpConn::Process() {
-  // 解析请求
-  // printf("parse http request...\n");
-  HTTP_CODE read_ret = ProcessRead();
-  if (read_ret == NO_REQUEST) {
-    // 请求不完整，重新注册读事件
-    ModFD(epollfd_, socketfd_, EPOLLIN);
-    return;
-  }
-  // 生成响应
-  // printf("produce http response...\n");
-  bool write_ret = ProcessWrite(read_ret);
-  LOG_DEBUG("%s", log_buf_);
-  if (file_addr_) {
-    bytes_to_send_ += file_stat_.st_size;
-  }
-  bytes_to_send_ += write_idx_;
-  if (!write_ret) {
-    LOG_ERR("%s %s", log_buf_,
-            "error: failed in calling ProcessWrite(HTTP_CODE)");
-    CloseConn();
-  }
-  // 注册写事件
-  ModFD(epollfd_, socketfd_, EPOLLOUT);
-}
-
 HttpConn::HttpConn(const int &epollfd) : epollfd_(epollfd) {
   h_request_ = new HttpRequest();
   if (h_request_ == nullptr) {
@@ -168,6 +134,98 @@ void HttpConn::Init(HttpRequest *h_request, HttpConn *h_conn) {
   h_conn->Init();
 }
 
+HttpConn::HTTP_CODE HttpConn::ParseRequestLine(char *line,
+                                               HttpRequest *h_request) {
+  if (strstr(line, "GET") != nullptr) {
+    h_request->method_ = HttpRequest::GET;
+  } else if (strstr(line, "POST") != nullptr) {
+    h_request->method_ = HttpRequest::POST;
+  } else {
+    return BAD_REQUEST;
+  }
+
+  char *tmp = nullptr;
+  // uri可能是/xxx或http://domain/xxx的形式
+  if ((tmp = strstr(line, "http://")) != nullptr) {
+    line = tmp;
+  }
+  if ((line = strstr(line, "/")) == nullptr) {
+    return BAD_REQUEST;
+  }
+  *line++ = '\0';
+  // 返回字符为空格或制表符的起始下标
+  tmp = strpbrk(line, " \t");
+  *tmp++ = '\0';
+  h_request->uri_ = line;
+  // 防止缓冲区溢出攻击
+  if (strlen(h_request->uri_) + 1 > FILENAME_LEN - doc_root.length()) {
+    return BAD_REQUEST;
+  }
+  line = tmp;
+
+  // 若请求uri为空，使用默认uri
+  if (strlen(h_request->uri_) == 0) {
+    h_request->uri_ = default_req_uri;
+  }
+  // 防止缓冲区溢出攻击与设置文件MIME类型
+  if (strlen(h_request->uri_) + 1 > FILENAME_LEN - doc_root.length()) {
+    return BAD_REQUEST;
+  }
+  h_request->SetMIME(h_request->uri_);
+  line = tmp;
+  if (strcasecmp(line, "HTTP/1.0") == 0) {
+    h_request->version_ = HttpRequest::HTTP_10;
+  } else if (strcasecmp(line, "HTTP/1.1") == 0) {
+    h_request->version_ = HttpRequest::HTTP_11;
+  } else {
+    return BAD_REQUEST;
+  }
+  // 处理状态转换为处理请求头
+  h_request->process_state_ = HttpConn::CHECK_STATE_HEADER;
+
+  return NO_REQUEST;
+}
+
+HttpConn::HTTP_CODE HttpConn::ParseHeader(char *line, HttpRequest *h_request) {
+  if (strcmp(line, "") == 0) {
+    if (h_request->method_ == HttpRequest::GET) {
+      h_request->process_state_ = CHECK_STATE_FINISH;
+      return GET_REQUEST;
+    } else if (h_request->method_ == HttpRequest::POST) {
+      h_request->process_state_ = CHECK_STATE_BODY;
+      return NO_REQUEST;
+    }
+  }
+  char *tmp = strstr(line, ":");
+  if (tmp == nullptr) {
+    return BAD_REQUEST;
+  }
+  *tmp++ = '\0';
+  *tmp++ = '\0';
+  if (strcmp(line, "Host") == 0)
+    h_request->header_option_.emplace(HttpRequest::Host, tmp);
+  else if (strcmp(line, "User-Agent") == 0)
+    h_request->header_option_.emplace(HttpRequest::User_Agent, tmp);
+  else if (strcmp(line, "Accept") == 0)
+    h_request->header_option_.emplace(HttpRequest::Accept, tmp);
+  else if (strcmp(line, "Referer") == 0)
+    h_request->header_option_.emplace(HttpRequest::Referer, tmp);
+  else if (strcmp(line, "Accept-Encoding") == 0)
+    h_request->header_option_.emplace(HttpRequest::Accept_Encoding, tmp);
+  else if (strcmp(line, "Accept-Language") == 0)
+    h_request->header_option_.emplace(HttpRequest::Accept_Language, tmp);
+  else if (strcmp(line, "Connection") == 0)
+    h_request->header_option_.emplace(HttpRequest::Connection, tmp);
+
+  return NO_REQUEST;
+}
+
+HttpConn::HTTP_CODE HttpConn::ParseBody(char *line, HttpRequest *h_request) {
+  h_request->content_ = line;
+  h_request->process_state_ = CHECK_STATE_FINISH;
+  return GET_REQUEST;
+}
+
 void HttpConn::Init() {
   memset(log_buf_, 0, sizeof(log_buf_));
   memset(filename_, 0, sizeof(filename_));
@@ -193,6 +251,107 @@ void HttpConn::Init(int cfd, const char *client_ip, const uint16_t &port) {
   AddFD(epollfd_, cfd, true);
   strcpy(client_ip_, client_ip);
   port_ = port;
+}
+
+bool HttpConn::Read() {
+  int bytes_read = 0;
+  while (true) {
+    bytes_read =
+        recv(socketfd_, read_buf_ + read_idx_, READ_BUFFER_SIZE - read_idx_, 0);
+    if (bytes_read == -1) {
+      // 已读完所有数据
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        break;
+      }
+      return false;
+    }
+    // 对方关闭连接
+    else if (bytes_read == 0) {
+      return false;
+    }
+    read_idx_ += bytes_read;
+  }
+  return true;
+}
+
+bool HttpConn::Write() {
+  // 所有响应数据已发送完毕
+  if (bytes_to_send_ == 0) {
+    ModFD(epollfd_, socketfd_, EPOLLIN);
+    HttpConn::Init(h_request_, this);
+    return true;
+  }
+  int bytes_write = 0;
+  while (true) {
+    bytes_write = writev(socketfd_, iv_, iv_count_);
+    if (bytes_write == -1) {
+      // 还有更多数据要写
+      if (errno == EAGAIN) {
+        ModFD(epollfd_, socketfd_, EPOLLOUT);
+        return true;
+      }
+      // 解除映射内存
+      UnMap();
+      return false;
+    }
+    bytes_to_send_ -= bytes_write;
+    bytes_have_send_ += bytes_write;
+    // 响应行和响应头未发送完毕
+    if (bytes_have_send_ <= write_idx_) {
+      iv_[0].iov_base = (uint8_t *)iv_[0].iov_base + bytes_have_send_;
+      iv_[0].iov_len -= bytes_have_send_;
+    }
+    // 响应行和响应头已发送完毕
+    else {
+      iv_[0].iov_len = 0;
+      iv_[1].iov_base =
+          (uint8_t *)iv_[1].iov_base + bytes_have_send_ - write_idx_;
+      iv_[1].iov_len -= (bytes_have_send_ - write_idx_);
+    }
+    if (bytes_to_send_ == 0) {
+      UnMap();
+      // 不释放连接
+      if (h_request_->header_option_.find(HttpRequest::Connection) !=
+              h_request_->header_option_.end() &&
+          strcasecmp(h_request_->header_option_[HttpRequest::Connection],
+                     "keep-alive") == 0) {
+        ModFD(epollfd_, socketfd_, EPOLLIN);
+        HttpConn::Init(h_request_, this);
+        return true;
+      }
+      // 释放连接
+      else {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+void HttpConn::Process() {
+  // 解析请求
+  // printf("parse http request...\n");
+  HTTP_CODE read_ret = ProcessRead();
+  if (read_ret == NO_REQUEST) {
+    // 请求不完整，重新注册读事件
+    ModFD(epollfd_, socketfd_, EPOLLIN);
+    return;
+  }
+  // 生成响应
+  // printf("produce http response...\n");
+  bool write_ret = ProcessWrite(read_ret);
+  LOG_INFO("%s", log_buf_);
+  if (file_addr_) {
+    bytes_to_send_ += file_stat_.st_size;
+  }
+  bytes_to_send_ += write_idx_;
+  if (!write_ret) {
+    LOG_ERR("%s %s", log_buf_,
+            "error: failed in calling ProcessWrite(HTTP_CODE)");
+    CloseConn();
+  }
+  // 注册写事件
+  ModFD(epollfd_, socketfd_, EPOLLOUT);
 }
 
 HttpConn::HTTP_CODE HttpConn::ProcessRead() {
@@ -410,174 +569,6 @@ HttpConn::LINE_STATE HttpConn::ParseLine() {
   return LINE_MORE;
 }
 
-HttpConn::HTTP_CODE HttpConn::ParseRequestLine(char *line,
-                                               HttpRequest *h_request) {
-  if (strstr(line, "GET") != nullptr) {
-    h_request->method_ = HttpRequest::GET;
-  } else if (strstr(line, "POST") != nullptr) {
-    h_request->method_ = HttpRequest::POST;
-  } else {
-    return BAD_REQUEST;
-  }
-
-  char *tmp = nullptr;
-  // uri可能是/xxx或http://domain/xxx的形式
-  if ((tmp = strstr(line, "http://")) != nullptr) {
-    line = tmp;
-  }
-  if ((line = strstr(line, "/")) == nullptr) {
-    return BAD_REQUEST;
-  }
-  *line++ = '\0';
-  // 返回字符为空格或制表符的起始下标
-  tmp = strpbrk(line, " \t");
-  *tmp++ = '\0';
-  h_request->uri_ = line;
-  // 防止缓冲区溢出攻击
-  if (strlen(h_request->uri_) + 1 > FILENAME_LEN - doc_root.length()) {
-    return BAD_REQUEST;
-  }
-  line = tmp;
-
-  // 若请求uri为空，使用默认uri
-  if (strlen(h_request->uri_) == 0) {
-    h_request->uri_ = default_req_uri;
-  }
-  // 防止缓冲区溢出攻击与设置文件MIME类型
-  if (strlen(h_request->uri_) + 1 > FILENAME_LEN - doc_root.length()) {
-    return BAD_REQUEST;
-  }
-  h_request->SetMIME(h_request->uri_);
-  line = tmp;
-  if (strcasecmp(line, "HTTP/1.0") == 0) {
-    h_request->version_ = HttpRequest::HTTP_10;
-  } else if (strcasecmp(line, "HTTP/1.1") == 0) {
-    h_request->version_ = HttpRequest::HTTP_11;
-  } else {
-    return BAD_REQUEST;
-  }
-  // 处理状态转换为处理请求头
-  h_request->process_state_ = HttpConn::CHECK_STATE_HEADER;
-
-  return NO_REQUEST;
-}
-
-HttpConn::HTTP_CODE HttpConn::ParseHeader(char *line, HttpRequest *h_request) {
-  if (strcmp(line, "") == 0) {
-    if (h_request->method_ == HttpRequest::GET) {
-      h_request->process_state_ = CHECK_STATE_FINISH;
-      return GET_REQUEST;
-    } else if (h_request->method_ == HttpRequest::POST) {
-      h_request->process_state_ = CHECK_STATE_BODY;
-      return NO_REQUEST;
-    }
-  }
-  char *tmp = strstr(line, ":");
-  if (tmp == nullptr) {
-    return BAD_REQUEST;
-  }
-  *tmp++ = '\0';
-  *tmp++ = '\0';
-  if (strcmp(line, "Host") == 0)
-    h_request->header_option_.emplace(HttpRequest::Host, tmp);
-  else if (strcmp(line, "User-Agent") == 0)
-    h_request->header_option_.emplace(HttpRequest::User_Agent, tmp);
-  else if (strcmp(line, "Accept") == 0)
-    h_request->header_option_.emplace(HttpRequest::Accept, tmp);
-  else if (strcmp(line, "Referer") == 0)
-    h_request->header_option_.emplace(HttpRequest::Referer, tmp);
-  else if (strcmp(line, "Accept-Encoding") == 0)
-    h_request->header_option_.emplace(HttpRequest::Accept_Encoding, tmp);
-  else if (strcmp(line, "Accept-Language") == 0)
-    h_request->header_option_.emplace(HttpRequest::Accept_Language, tmp);
-  else if (strcmp(line, "Connection") == 0)
-    h_request->header_option_.emplace(HttpRequest::Connection, tmp);
-
-  return NO_REQUEST;
-}
-
-HttpConn::HTTP_CODE HttpConn::ParseBody(char *line, HttpRequest *h_request) {
-  h_request->content_ = line;
-  h_request->process_state_ = CHECK_STATE_FINISH;
-  return GET_REQUEST;
-}
-
-bool HttpConn::Read() {
-  int bytes_read = 0;
-  while (true) {
-    bytes_read =
-        recv(socketfd_, read_buf_ + read_idx_, READ_BUFFER_SIZE - read_idx_, 0);
-    if (bytes_read == -1) {
-      // 已读完所有数据
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        break;
-      }
-      return false;
-    }
-    // 对方关闭连接
-    else if (bytes_read == 0) {
-      return false;
-    }
-    read_idx_ += bytes_read;
-  }
-  return true;
-}
-
-bool HttpConn::Write() {
-  // 所有响应数据已发送完毕
-  if (bytes_to_send_ == 0) {
-    ModFD(epollfd_, socketfd_, EPOLLIN);
-    HttpConn::Init(h_request_, this);
-    return true;
-  }
-  int bytes_write = 0;
-  while (true) {
-    bytes_write = writev(socketfd_, iv_, iv_count_);
-    if (bytes_write == -1) {
-      // 还有更多数据要写
-      if (errno == EAGAIN) {
-        ModFD(epollfd_, socketfd_, EPOLLOUT);
-        return true;
-      }
-      // 解除映射内存
-      UnMap();
-      return false;
-    }
-    bytes_to_send_ -= bytes_write;
-    bytes_have_send_ += bytes_write;
-    // 响应行和响应头未发送完毕
-    if (bytes_have_send_ <= write_idx_) {
-      iv_[0].iov_base = (uint8_t *)iv_[0].iov_base + bytes_have_send_;
-      iv_[0].iov_len -= bytes_have_send_;
-    }
-    // 响应行和响应头已发送完毕
-    else {
-      iv_[0].iov_len = 0;
-      iv_[1].iov_base =
-          (uint8_t *)iv_[1].iov_base + bytes_have_send_ - write_idx_;
-      iv_[1].iov_len -= (bytes_have_send_ - write_idx_);
-    }
-    if (bytes_to_send_ == 0) {
-      UnMap();
-      // 不释放连接
-      if (h_request_->header_option_.find(HttpRequest::Connection) !=
-              h_request_->header_option_.end() &&
-          strcasecmp(h_request_->header_option_[HttpRequest::Connection],
-                     "keep-alive") == 0) {
-        ModFD(epollfd_, socketfd_, EPOLLIN);
-        HttpConn::Init(h_request_, this);
-        return true;
-      }
-      // 释放连接
-      else {
-        LOG_DEBUG("Release Connection");
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 bool HttpConn::AddResponseLine(const char *format, ...) {
   if (write_idx_ >= WRITE_BUFFER_SIZE) {
     return false;
@@ -660,4 +651,12 @@ bool HttpRequest::SetMIME(const char *filename) {
 }
 
 int HttpConn::GetSocketfd() { return socketfd_; }
+
+void HttpConn::CloseConn() {
+  if (socketfd_ != -1) {
+    RemoveFD(epollfd_, socketfd_);
+    socketfd_ = -1;
+    --user_count_;
+  }
+}
 }  // namespace TinyWebServer

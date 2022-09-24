@@ -44,11 +44,10 @@ class Server : NonCopyable {
   void InitLog(bool async);
   void Run(int port);
   void Close();
-  static std::atomic<int> conn_count_;
   static bool server_run_;
 
  private:
-  Server(const int &reactor_count = 2);
+  Server(const int &reactor_count = 4);
 
   std::unique_ptr<pthread_t[]> reactor_threads_;
   UniqueReactorArr reactors_;

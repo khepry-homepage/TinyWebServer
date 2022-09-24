@@ -1,5 +1,4 @@
-#ifndef HTTPCONNECTION_H
-#define HTTPCONNECTION_H
+#pragma once
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
@@ -16,7 +15,6 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
-#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -27,15 +25,12 @@ namespace TinyWebServer {
 extern const char *default_req_uri;
 extern std::string doc_root;
 struct HttpRequest;
+class HttpConn;
+typedef std::shared_ptr<HttpConn> SharedHttpConn;
+typedef std::weak_ptr<HttpConn> WeakHttpConn;
 
 class HttpConn {
  public:
-  const static int READ_BUFFER_SIZE = 2048;   // 读缓冲区大小
-  const static int WRITE_BUFFER_SIZE = 2048;  // 写缓冲区大小
-  const static int FILENAME_LEN = 128;        // 访问资源的文件名大小
-  static std::atomic<int> user_count_;        // 统计用户的数量
-  static DBConnPool *coon_pool_;              // 数据库连接池
-
   enum LINE_STATE { LINE_OK, LINE_BAD, LINE_MORE };
   enum PROCESS_STATE {
     CHECK_STATE_REQUESTLINE = 0,
@@ -69,6 +64,9 @@ class HttpConn {
 
   static void Init(HttpRequest *h_request,
                    HttpConn *h_coon);  // 初始化http请求解析状态
+  static HTTP_CODE ParseRequestLine(char *line, HttpRequest *h_request);
+  static HTTP_CODE ParseHeader(char *line, HttpRequest *h_request);
+  static HTTP_CODE ParseBody(char *line, HttpRequest *h_request);
   void Init();
   void Init(int cfd, const char *client_ip,
             const uint16_t &port);  // 初始化接受的客户端连接信息
@@ -90,9 +88,6 @@ class HttpConn {
   HTTP_CODE DoRequest();
   bool ProcessWrite(HTTP_CODE code);
   LINE_STATE ParseLine();
-  static HTTP_CODE ParseRequestLine(char *line, HttpRequest *h_request);
-  static HTTP_CODE ParseHeader(char *line, HttpRequest *h_request);
-  static HTTP_CODE ParseBody(char *line, HttpRequest *h_request);
   bool AddResponseLine(const char *format,
                        ...);  // 将格式化的数据写入写缓冲区中
   bool AddStatusLine(int code,
@@ -101,18 +96,23 @@ class HttpConn {
   bool AddResponseContent(const char *content);  // 往写缓冲区添加错误提示信息
   void UnMap();                                  // 解除映射内存
   int GetSocketfd();  // 获取连接的文件描述符
+
+  static std::atomic<int> user_count_;  // 统计用户的数量
+  static DBConnPool *coon_pool_;        // 数据库连接池
  private:
   void CloseConn();  // 关闭连接
 
- private:
+  const static int READ_BUFFER_SIZE = 2048;   // 读缓冲区大小
+  const static int WRITE_BUFFER_SIZE = 2048;  // 写缓冲区大小
+  const static int FILENAME_LEN = 128;        // 访问资源的文件名大小
+
   const int epollfd_;  // epoll句柄
   int socketfd_;       // 该http连接的socket
-  HttpRequest *h_request_;
+  int read_idx_;       // 当前读取的字节位置
+  int start_idx_;      // 当前解析的行起始位置
+  int check_idx_;      // 当前解析的字节位置
   char read_buf_[READ_BUFFER_SIZE];
-  int read_idx_;   // 当前读取的字节位置
-  int start_idx_;  // 当前解析的行起始位置
-  int check_idx_;  // 当前解析的字节位置
-
+  HttpRequest *h_request_;
   char write_buf_[WRITE_BUFFER_SIZE];
   int write_idx_ = 0;
   int bytes_to_send_ = 0;    // 需要发送的字节总数
@@ -160,9 +160,4 @@ struct HttpRequest {
   const char *mime_type_;
   std::unordered_map<HTTP_HEADER, const char *> header_option_;
 };
-
-typedef std::shared_ptr<HttpConn> SmartHttpConn;
-typedef std::weak_ptr<HttpConn> WeakHttpConn;
 }  // namespace TinyWebServer
-
-#endif

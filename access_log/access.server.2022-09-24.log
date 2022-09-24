@@ -1,0 +1,10 @@
+[INFO]: 2022-09-24 14:47:28 [client 192.168.85.1] GET / HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:28 [client 192.168.85.1] GET /css/index-1c21edaa.css HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:28 [client 192.168.85.1] GET /js/index-68386c23.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:28 [client 192.168.85.1] GET /vite.svg HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:28 [client 192.168.85.1] GET /css/LoginView-6cd9a7dc.css HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:28 [client 192.168.85.1] GET /vendors/LoginView-aa7f2eb3.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:28 [client 192.168.85.1] GET /vendors/index-25108c0c.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:30 [client 192.168.85.1] GET /css/RegisterView-01e25a63.css HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:30 [client 192.168.85.1] GET /vendors/RegisterView-707f0a09.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:47:34 [client 192.168.85.1] POST /register HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36

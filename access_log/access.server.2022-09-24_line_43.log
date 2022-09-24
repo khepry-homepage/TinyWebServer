@@ -1,0 +1,5 @@
+[INFO]: 2022-09-24 14:59:58 [client 192.168.85.1] GET /vendors/index-25108c0c.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 14:59:58 [client 192.168.85.1] GET /vite.svg HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 15:00:00 [client 192.168.85.1] POST /login HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 15:00:00 [client 192.168.85.1] GET /css/HelloWorld-a6177c13.css HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36
+[INFO]: 2022-09-24 15:00:00 [client 192.168.85.1] GET /vendors/HelloWorld-c7a62f3c.js HTTP/1.1 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36

@@ -45,7 +45,7 @@ int Log::MAX_LOG_LINE = 1000;
 int Log::MAX_QUEUE_SIZE = 1000;
 bool Log::ASYNC_WRITE = true;
 
-Log::Log() : log_run_(true), fp_(nullptr) {
+Log::Log() : log_queue_(1000), fp_(nullptr), log_run_(true) {
   if (mkdir(DEFAULT_ACCESSLOG_ROOT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) |
       mkdir(DEFAULT_ERRORLOG_ROOT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) !=
           0) {

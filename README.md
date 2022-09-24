@@ -36,11 +36,11 @@ version--1.0
 # 压力测试
 `cd ./webbench-1.5 && webbench -c [concurrency] -t [duration] [host:port]`
 
-# 测试结果
+# branch v1.0测试结果
   - 测试环境: 
     - 客户机: Ubuntu20.04 内存8G 2核
     - 服务器: Ubuntu22.04 内存8G 4核
-  - 测试结果: 10000+QPS
+  - 测试结果: 11400 QPS
 ![image-20220907230526200.png](https://s2.loli.net/2022/09/07/ezJbM4UtBpP9Isn.png)
 
 # 检查性能瓶颈问题所在
@@ -58,5 +58,12 @@ version--1.0
 
 ## To Do
 
-- [ ] 将IO操作的监听和处理分离到单独的IO线程
-- [ ] 通过Round Robin算法在IO线程上注册IO事件
+- [x] 将IO操作的监听和处理分离到单独的IO线程
+- [x] 通过Round Robin算法在IO线程上注册IO事件
+
+# branch main测试结果
+  - 测试环境: 
+    - 客户机: Ubuntu20.04 内存8G 2核
+    - 服务器: Ubuntu22.04 内存8G 4核
+  - 测试结果: 14000 QPS
+![image-20220924143023104](https://s2.loli.net/2022/09/24/al6vfx3K4mbHRBO.png)

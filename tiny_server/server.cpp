@@ -58,7 +58,7 @@ void Server::Init() {
   InitLog(true);
 }
 
-void Server::InitThreadPool() { ThreadPool<SmartHttpConn>::Init(1000); }
+void Server::InitThreadPool() { ThreadPool<SharedHttpConn>::Init(1000); }
 
 void Server::InitDBConn() {
   DBConnPool::Init("localhost", "root", "123456", "tiny_webserver", 3306, 10);
@@ -73,7 +73,6 @@ void Server::InitLog(bool async) {
   Log::Init("server", Log::DEBUG, 10, 1000, true);
   log_ = Log::GetInstance();
 }
-std::atomic<int> Server::conn_count_ = 0;
 
 void Server::Run(int port) {
   AddSig(SIGPIPE, SIG_IGN);             // 忽略
@@ -107,6 +106,7 @@ void Server::Run(int port) {
   fds[0].events = POLL_IN;
   fds[1].events = POLL_IN;
   int nfds = 2;
+
   while (server_run_) {
     int ret = poll(fds, nfds, -1);
     if (ret == -1 && errno != EINTR) {
@@ -121,9 +121,6 @@ void Server::Run(int port) {
           sockaddr_in c_addr;
           socklen_t len = sizeof(c_addr);
           while ((cfd = accept(lfd, (struct sockaddr *)&c_addr, &len)) != -1) {
-            LOG_DEBUG("real connect count: %d, response connect count: %d",
-                      HttpConn::user_count_.load(), conn_count_.load());
-            ++conn_count_;
             if (HttpConn::user_count_ >= MAX_FD) {
               // 目前连接数已满，无法接受更多连接
               LOG_DEBUG("connect fail and can not accept overload connection");
